@@ -1,5 +1,5 @@
 // Oyster Cart - Date Blocker for Mussel Madness Ticket
-// v3 - handles closed calendar state
+// v4 - handles offset (prev/next month) cells correctly
 // Last updated: 2026-05-13
 
 (function() {
@@ -37,14 +37,13 @@
   }
 
   function applyBlocks() {
-    // Look for open calendar (it's in a menu/portal, separate from the input)
     var menus = document.querySelectorAll('.dp__menu, .dp__instance_calendar');
-    if (menus.length === 0) return; // calendar not open
+    if (menus.length === 0) return;
 
     var monthNames = ['january','february','march','april','may','june',
                       'july','august','september','october','november','december'];
 
-    menus.forEach(function(menu, idx) {
+    menus.forEach(function(menu) {
       var header = menu.querySelector('.dp__month_year_wrap, .dp__month_year_select');
       if (!header) return;
 
@@ -64,16 +63,38 @@
 
       var cells = menu.querySelectorAll('.dp__cell_inner');
       var blockedCount = 0;
+      var cellArray = Array.prototype.slice.call(cells);
 
-      cells.forEach(function(cell) {
-        if (cell.classList.contains('dp__cell_offset')) return;
+      cellArray.forEach(function(cell, idx) {
         if (cell.getAttribute('data-blocked') === 'true') return;
 
         var day = parseInt(cell.textContent.trim(), 10);
         if (isNaN(day)) return;
 
-        var cellDate = new Date(year, month, day);
-        var dateStr = year + '-' + pad(month + 1) + '-' + pad(day);
+        // Determine the actual month this cell belongs to.
+        // Vue Datepicker shows up to 6 weeks (42 cells) — leading offset = prev month,
+        // trailing offset = next month. Detect by position + day value.
+        var cellMonth = month;
+        var cellYear = year;
+        var isOffset = cell.classList.contains('dp__cell_offset');
+        
+        if (isOffset) {
+          // If the day is > 20 and we're in the first row, it's the previous month
+          // If the day is < 15 and we're past row 4, it's the next month
+          var rowIndex = Math.floor(idx / 7);
+          if (rowIndex === 0 && day > 20) {
+            // Previous month
+            cellMonth = month - 1;
+            if (cellMonth < 0) { cellMonth = 11; cellYear = year - 1; }
+          } else {
+            // Next month
+            cellMonth = month + 1;
+            if (cellMonth > 11) { cellMonth = 0; cellYear = year + 1; }
+          }
+        }
+
+        var cellDate = new Date(cellYear, cellMonth, day);
+        var dateStr = cellYear + '-' + pad(cellMonth + 1) + '-' + pad(day);
         var weekday = cellDate.getDay();
 
         var block = false;
