@@ -1,21 +1,22 @@
 // Oyster Cart - Date Blocker for Mussel Madness Ticket
-// Blocks: Mondays, Fridays, Saturdays
-// Blocks: specific dates listed below
-// Blocks: today after 12:30 AM SGT
+// v2 - with diagnostic logging
 // Last updated: 2026-05-13
 
 (function() {
   'use strict';
 
-  // === CONFIG ===
-  var BLOCKED_WEEKDAYS = [1, 5, 6]; // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-  var BLOCKED_DATES = ['2026-05-19']; // YYYY-MM-DD format
+  var BLOCKED_WEEKDAYS = [1, 5, 6];
+  var BLOCKED_DATES = ['2026-05-19'];
   var CUTOFF_HOUR = 0;
   var CUTOFF_MINUTE = 30;
   var SGT_OFFSET_HOURS = 8;
-  var TARGET_PRODUCT_ID = 806985688; // Mussel Madness Ticket (set to null to apply to all products)
+  var TARGET_PRODUCT_ID = 806985688;
 
-  // === HELPERS ===
+  function log() {
+    var args = ['[OysterCart DateBlocker]'].concat(Array.prototype.slice.call(arguments));
+    console.log.apply(console, args);
+  }
+
   function pad(n) { return String(n).padStart(2, '0'); }
 
   function nowInSGT() {
@@ -38,31 +39,45 @@
   function applyBlocks() {
     var pickers = document.querySelectorAll('.dp__main');
     if (pickers.length === 0) return;
+    
+    log('applyBlocks running, found pickers:', pickers.length);
 
     var monthNames = ['january','february','march','april','may','june',
                       'july','august','september','october','november','december'];
 
-    pickers.forEach(function(picker) {
+    pickers.forEach(function(picker, idx) {
       var header = picker.querySelector('.dp__month_year_wrap, .dp__month_year_select');
-      if (!header) return;
+      log('Picker', idx, 'header element:', header);
+      if (!header) {
+        log('Picker', idx, 'has no header - dumping picker HTML:', picker.outerHTML.substring(0, 500));
+        return;
+      }
 
       var headerText = header.textContent.trim().toLowerCase();
+      log('Picker', idx, 'header text:', headerText);
+      
       var month = -1, year = -1;
       monthNames.forEach(function(name, i) {
         if (headerText.indexOf(name) !== -1) month = i;
       });
       var ym = headerText.match(/\d{4}/);
       if (ym) year = parseInt(ym[0], 10);
+      
+      log('Picker', idx, 'parsed month/year:', month, year);
       if (month === -1 || year === -1) return;
 
       var sn = nowInSGT();
       var todaySG = new Date(sn.getFullYear(), sn.getMonth(), sn.getDate());
       var tk = todayKeySGT();
       var cp = isPastCutoffSGT();
+      
+      var cells = picker.querySelectorAll('.dp__cell_inner');
+      log('Picker', idx, 'cells found:', cells.length);
 
-      picker.querySelectorAll('.dp__cell_inner').forEach(function(cell) {
+      var blockedCount = 0;
+      cells.forEach(function(cell) {
         if (cell.classList.contains('dp__cell_offset')) return;
-        if (cell.getAttribute('data-blocked') === 'true') return; // already processed
+        if (cell.getAttribute('data-blocked') === 'true') return;
 
         var day = parseInt(cell.textContent.trim(), 10);
         if (isNaN(day)) return;
@@ -84,12 +99,13 @@
           cell.style.textDecoration = 'line-through';
           cell.setAttribute('data-blocked', 'true');
           cell.setAttribute('title', 'Not available');
+          blockedCount++;
         }
       });
+      log('Picker', idx, 'blocked', blockedCount, 'cells');
     });
   }
 
-  // Watch for the datepicker rendering or changing months
   var observer = new MutationObserver(function() {
     applyBlocks();
   });
@@ -101,18 +117,24 @@
     }
 
     Ecwid.OnAPILoaded.add(function() {
-      console.log('[OysterCart DateBlocker] Loaded');
+      log('Ecwid API loaded');
     });
 
     Ecwid.OnPageLoaded.add(function(page) {
+      log('Page loaded, type:', page.type, 'productId:', page.productId);
       if (page.type !== 'PRODUCT') return;
-      if (TARGET_PRODUCT_ID !== null && page.productId !== TARGET_PRODUCT_ID) return;
+      if (TARGET_PRODUCT_ID !== null && page.productId !== TARGET_PRODUCT_ID) {
+        log('Not target product, skipping');
+        return;
+      }
 
+      log('Target product detected, starting observer');
       observer.disconnect();
       observer.observe(document.body, { childList: true, subtree: true });
       applyBlocks();
     });
   }
 
+  log('Loaded');
   start();
 })();
