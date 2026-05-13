@@ -1,5 +1,5 @@
 // Oyster Cart - Date Blocker for Mussel Madness Ticket
-// v2 - with diagnostic logging
+// v3 - handles closed calendar state
 // Last updated: 2026-05-13
 
 (function() {
@@ -37,44 +37,34 @@
   }
 
   function applyBlocks() {
-    var pickers = document.querySelectorAll('.dp__main');
-    if (pickers.length === 0) return;
-    
-    log('applyBlocks running, found pickers:', pickers.length);
+    // Look for open calendar (it's in a menu/portal, separate from the input)
+    var menus = document.querySelectorAll('.dp__menu, .dp__instance_calendar');
+    if (menus.length === 0) return; // calendar not open
 
     var monthNames = ['january','february','march','april','may','june',
                       'july','august','september','october','november','december'];
 
-    pickers.forEach(function(picker, idx) {
-      var header = picker.querySelector('.dp__month_year_wrap, .dp__month_year_select');
-      log('Picker', idx, 'header element:', header);
-      if (!header) {
-        log('Picker', idx, 'has no header - dumping picker HTML:', picker.outerHTML.substring(0, 500));
-        return;
-      }
+    menus.forEach(function(menu, idx) {
+      var header = menu.querySelector('.dp__month_year_wrap, .dp__month_year_select');
+      if (!header) return;
 
       var headerText = header.textContent.trim().toLowerCase();
-      log('Picker', idx, 'header text:', headerText);
-      
       var month = -1, year = -1;
       monthNames.forEach(function(name, i) {
         if (headerText.indexOf(name) !== -1) month = i;
       });
       var ym = headerText.match(/\d{4}/);
       if (ym) year = parseInt(ym[0], 10);
-      
-      log('Picker', idx, 'parsed month/year:', month, year);
       if (month === -1 || year === -1) return;
 
       var sn = nowInSGT();
       var todaySG = new Date(sn.getFullYear(), sn.getMonth(), sn.getDate());
       var tk = todayKeySGT();
       var cp = isPastCutoffSGT();
-      
-      var cells = picker.querySelectorAll('.dp__cell_inner');
-      log('Picker', idx, 'cells found:', cells.length);
 
+      var cells = menu.querySelectorAll('.dp__cell_inner');
       var blockedCount = 0;
+
       cells.forEach(function(cell) {
         if (cell.classList.contains('dp__cell_offset')) return;
         if (cell.getAttribute('data-blocked') === 'true') return;
@@ -102,7 +92,10 @@
           blockedCount++;
         }
       });
-      log('Picker', idx, 'blocked', blockedCount, 'cells');
+
+      if (blockedCount > 0) {
+        log('Blocked', blockedCount, 'dates in', headerText);
+      }
     });
   }
 
@@ -121,17 +114,12 @@
     });
 
     Ecwid.OnPageLoaded.add(function(page) {
-      log('Page loaded, type:', page.type, 'productId:', page.productId);
       if (page.type !== 'PRODUCT') return;
-      if (TARGET_PRODUCT_ID !== null && page.productId !== TARGET_PRODUCT_ID) {
-        log('Not target product, skipping');
-        return;
-      }
+      if (TARGET_PRODUCT_ID !== null && page.productId !== TARGET_PRODUCT_ID) return;
 
-      log('Target product detected, starting observer');
+      log('Target product detected, watching for date picker');
       observer.disconnect();
       observer.observe(document.body, { childList: true, subtree: true });
-      applyBlocks();
     });
   }
 
