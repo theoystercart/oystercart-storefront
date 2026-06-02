@@ -6,7 +6,7 @@
   'use strict';
 
   var BLOCKED_WEEKDAYS = [1, 5, 6];
-  var BLOCKED_DATES = ['2026-05-19'];
+  var BLOCKED_DATES = ['2026-06-28'];
   var CUTOFF_HOUR = 0;
   var CUTOFF_MINUTE = 30;
   var SGT_OFFSET_HOURS = 8;
