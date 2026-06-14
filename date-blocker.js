@@ -1,12 +1,13 @@
 // Oyster Cart - Date Blocker for Mussel Madness Ticket
-// v4 - handles offset (prev/next month) cells correctly
-// Last updated: 2026-05-13
+// v5 - adds ALLOWED_DATES to override weekday blocks
+// Last updated: 2026-06-10
 
 (function() {
   'use strict';
 
-  var BLOCKED_WEEKDAYS = [1, 5, 6];
-  var BLOCKED_DATES = ['2026-06-28'];
+  var BLOCKED_WEEKDAYS = [0, 1, 5, 6]; // 0=Sun, 1=Mon, 5=Fri, 6=Sat
+  var BLOCKED_DATES = ['2026-06-28']; // always blocked (overrides ALLOWED_DATES)
+  var ALLOWED_DATES = ['2026-06-21']; // override BLOCKED_WEEKDAYS for these dates
   var CUTOFF_HOUR = 0;
   var CUTOFF_MINUTE = 30;
   var SGT_OFFSET_HOURS = 8;
@@ -77,10 +78,8 @@
         var cellMonth = month;
         var cellYear = year;
         var isOffset = cell.classList.contains('dp__cell_offset');
-        
+
         if (isOffset) {
-          // If the day is > 20 and we're in the first row, it's the previous month
-          // If the day is < 15 and we're past row 4, it's the next month
           var rowIndex = Math.floor(idx / 7);
           if (rowIndex === 0 && day > 20) {
             // Previous month
@@ -102,6 +101,14 @@
         if (dateStr === tk && cp) block = true;
         if (BLOCKED_WEEKDAYS.indexOf(weekday) !== -1) block = true;
         if (BLOCKED_DATES.indexOf(dateStr) !== -1) block = true;
+
+        // ALLOWED_DATES override weekday block (but not past dates or explicit BLOCKED_DATES)
+        if (ALLOWED_DATES.indexOf(dateStr) !== -1
+            && cellDate >= todaySG
+            && BLOCKED_DATES.indexOf(dateStr) === -1
+            && !(dateStr === tk && cp)) {
+          block = false;
+        }
 
         if (block) {
           cell.classList.add('dp__cell_disabled');
