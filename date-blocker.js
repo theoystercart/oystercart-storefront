@@ -5,7 +5,7 @@
 (function() {
   'use strict';
 
-  var BLOCKED_WEEKDAYS = [0, 1, 5, 6]; // 0=Sun, 1=Mon, 5=Fri, 6=Sat
+  var BLOCKED_WEEKDAYS = [0, 1, 3, 4, 5, 6]; // 0=Sun, 1=Mon, 5=Fri, 6=Sat
   var BLOCKED_DATES = ['2026-07-16', '2026-07-14']; // always blocked (overrides ALLOWED_DATES)
   var ALLOWED_DATES = ['2026-06-21']; // override BLOCKED_WEEKDAYS for these dates
   var CUTOFF_HOUR = 0;
