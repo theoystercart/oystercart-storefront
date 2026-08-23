@@ -1,3 +1,6 @@
+console.log('[CartTest] date-blocker running on:', window.location.href, '| top:', window.top === window.self ? 'is top' : 'in iframe');
+
+
 // Oyster Cart - Date Blocker for Mussel Madness Ticket
 // v5 - adds ALLOWED_DATES to override weekday blocks
 // Last updated: 2026-06-10
