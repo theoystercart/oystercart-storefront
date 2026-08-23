@@ -1,29 +1,47 @@
-/* ===== OysterCart Cart Bridge — appended below the date blocker ===== */
+/* ===== OysterCart Cart Bridge ===== */
 (function () {
   console.log('[OysterCart Cart Bridge] script running');
 
-  function getTopParam(name) {
+  function getParams() {
+    // The parent URL is unreadable cross-origin, but Ecwid passes the
+    // page's route through in its own config, which we CAN read.
+    var sources = [];
+    try { sources.push(window.location.search); } catch (e) {}
     try {
-      var search = (window.top && window.top.location && window.top.location.search)
-        ? window.top.location.search
-        : window.location.search;
-      return new URLSearchParams(search).get(name);
-    } catch (e) {
-      console.error('[OysterCart Cart Bridge] cannot read top URL', e);
+      if (window.ec && window.ec.config && window.ec.config.currentRoute) {
+        sources.push(window.ec.config.currentRoute);
+      }
+    } catch (e) {}
+    try { sources.push(document.referrer); } catch (e) {}
+
+    for (var i = 0; i < sources.length; i++) {
+      var src = sources[i];
+      if (!src || src.indexOf('ocAdd') === -1) continue;
+      var qs = src.indexOf('?') !== -1 ? src.slice(src.indexOf('?') + 1) : src;
       try {
-        return new URLSearchParams(window.location.search).get(name);
-      } catch (e2) { return null; }
+        var p = new URLSearchParams(qs);
+        if (p.get('ocAdd')) {
+          console.log('[OysterCart Cart Bridge] found params in source', i);
+          return p;
+        }
+      } catch (e) {}
     }
+    return null;
   }
 
   function runCartCommand() {
-    var productId = Number(getTopParam('ocAdd'));
-    console.log('[OysterCart Cart Bridge] checking for cart command, ocAdd =', productId);
+    var params = getParams();
+    if (!params) {
+      console.log('[OysterCart Cart Bridge] no cart command found');
+      return;
+    }
+
+    var productId = Number(params.get('ocAdd'));
     if (!productId) return;
 
-    var qty = Number(getTopParam('qty') || 1);
+    var qty = Number(params.get('qty') || 1);
     var options = {};
-    var rawOpts = getTopParam('opts');
+    var rawOpts = params.get('opts');
     if (rawOpts) {
       try {
         options = JSON.parse(decodeURIComponent(escape(atob(rawOpts))));
@@ -40,25 +58,16 @@
       options: options,
       callback: function (success, product, cart, error) {
         console.log('[OysterCart Cart Bridge] result:', success, 'error:', error);
-        if (!success) return;
-        console.log('[OysterCart Cart Bridge] added — cart total now', cart && cart.total);
-        try {
-          window.top.history.replaceState({}, '', window.top.location.pathname);
-        } catch (e) {}
-        Ecwid.openPage('cart');
+        if (success) Ecwid.openPage('cart');
       }
     });
   }
 
-  // Retry indefinitely, the same way the date blocker below does — Ecwid
-  // can take longer than a capped loop allows, and giving up silently was
-  // why this never ran.
   function start() {
     if (typeof Ecwid === 'undefined' || !Ecwid.OnAPILoaded) {
       setTimeout(start, 500);
       return;
     }
-    console.log('[OysterCart Cart Bridge] Ecwid found, waiting for API');
     Ecwid.OnAPILoaded.add(function () {
       console.log('[OysterCart Cart Bridge] API loaded');
       runCartCommand();
