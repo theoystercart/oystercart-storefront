@@ -1,22 +1,29 @@
 /* ===== OysterCart Cart Bridge — appended below the date blocker ===== */
 (function () {
-  // Only run in the real storefront context, never inside the
-  // custom product page's own embed iframe.
-  if (window.top !== window.self) return;
-
-  function getParam(name) {
+  function getTopParam(name) {
     try {
-      return new URLSearchParams(window.location.search).get(name);
-    } catch (e) { return null; }
+      // Ecwid's Custom JS runs inside an iframe, but the ocAdd params are
+      // on the parent (Wix) page URL — read from top, with a fallback.
+      var search = (window.top && window.top.location && window.top.location.search)
+        ? window.top.location.search
+        : window.location.search;
+      return new URLSearchParams(search).get(name);
+    } catch (e) {
+      console.error('[OysterCart Cart Bridge] cannot read top URL', e);
+      try {
+        return new URLSearchParams(window.location.search).get(name);
+      } catch (e2) { return null; }
+    }
   }
 
   function runCartCommand() {
-    var productId = Number(getParam('ocAdd'));
+    var productId = Number(getTopParam('ocAdd'));
+    console.log('[OysterCart Cart Bridge] checking for cart command, ocAdd =', productId);
     if (!productId) return;
 
-    var qty = Number(getParam('qty') || 1);
+    var qty = Number(getTopParam('qty') || 1);
     var options = {};
-    var rawOpts = getParam('opts');
+    var rawOpts = getTopParam('opts');
     if (rawOpts) {
       try {
         options = JSON.parse(decodeURIComponent(escape(atob(rawOpts))));
@@ -32,14 +39,17 @@
       quantity: qty,
       options: options,
       callback: function (success, product, cart, error) {
-        console.log('[OysterCart Cart Bridge] result', success, error);
-        if (success) {
-          // Strip the params so a refresh doesn't add it again.
-          try {
-            window.history.replaceState({}, '', window.location.pathname);
-          } catch (e) {}
-          Ecwid.openPage('cart');
-        }
+        console.log('[OysterCart Cart Bridge] result:', success, 'error:', error);
+        if (!success) return;
+
+        console.log('[OysterCart Cart Bridge] added — cart total now', cart && cart.total);
+
+        // Clear the params on the parent so a refresh doesn't re-add.
+        try {
+          window.top.history.replaceState({}, '', window.top.location.pathname);
+        } catch (e) {}
+
+        Ecwid.openPage('cart');
       }
     });
   }
@@ -47,7 +57,10 @@
   (function waitForEcwid(attempt) {
     attempt = attempt || 0;
     if (typeof Ecwid === 'undefined' || !Ecwid.OnAPILoaded) {
-      if (attempt > 100) return;
+      if (attempt > 100) {
+        console.error('[OysterCart Cart Bridge] Ecwid never became available');
+        return;
+      }
       setTimeout(function () { waitForEcwid(attempt + 1); }, 100);
       return;
     }
