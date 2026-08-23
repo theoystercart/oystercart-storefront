@@ -1,5 +1,59 @@
-console.log('[CartTest] date-blocker running on:', window.location.href, '| top:', window.top === window.self ? 'is top' : 'in iframe');
+/* ===== OysterCart Cart Bridge — appended below the date blocker ===== */
+(function () {
+  // Only run in the real storefront context, never inside the
+  // custom product page's own embed iframe.
+  if (window.top !== window.self) return;
 
+  function getParam(name) {
+    try {
+      return new URLSearchParams(window.location.search).get(name);
+    } catch (e) { return null; }
+  }
+
+  function runCartCommand() {
+    var productId = Number(getParam('ocAdd'));
+    if (!productId) return;
+
+    var qty = Number(getParam('qty') || 1);
+    var options = {};
+    var rawOpts = getParam('opts');
+    if (rawOpts) {
+      try {
+        options = JSON.parse(decodeURIComponent(escape(atob(rawOpts))));
+      } catch (e) {
+        console.error('[OysterCart Cart Bridge] could not decode options', e);
+      }
+    }
+
+    console.log('[OysterCart Cart Bridge] adding', { id: productId, quantity: qty, options: options });
+
+    Ecwid.Cart.addProduct({
+      id: productId,
+      quantity: qty,
+      options: options,
+      callback: function (success, product, cart, error) {
+        console.log('[OysterCart Cart Bridge] result', success, error);
+        if (success) {
+          // Strip the params so a refresh doesn't add it again.
+          try {
+            window.history.replaceState({}, '', window.location.pathname);
+          } catch (e) {}
+          Ecwid.openPage('cart');
+        }
+      }
+    });
+  }
+
+  (function waitForEcwid(attempt) {
+    attempt = attempt || 0;
+    if (typeof Ecwid === 'undefined' || !Ecwid.OnAPILoaded) {
+      if (attempt > 100) return;
+      setTimeout(function () { waitForEcwid(attempt + 1); }, 100);
+      return;
+    }
+    Ecwid.OnAPILoaded.add(function () { runCartCommand(); });
+  })();
+})();
 
 // Oyster Cart - Date Blocker for Mussel Madness Ticket
 // v5 - adds ALLOWED_DATES to override weekday blocks
