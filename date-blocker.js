@@ -1,9 +1,9 @@
 /* ===== OysterCart Cart Bridge — appended below the date blocker ===== */
 (function () {
+  console.log('[OysterCart Cart Bridge] script running');
+
   function getTopParam(name) {
     try {
-      // Ecwid's Custom JS runs inside an iframe, but the ocAdd params are
-      // on the parent (Wix) page URL — read from top, with a fallback.
       var search = (window.top && window.top.location && window.top.location.search)
         ? window.top.location.search
         : window.location.search;
@@ -41,31 +41,31 @@
       callback: function (success, product, cart, error) {
         console.log('[OysterCart Cart Bridge] result:', success, 'error:', error);
         if (!success) return;
-
         console.log('[OysterCart Cart Bridge] added — cart total now', cart && cart.total);
-
-        // Clear the params on the parent so a refresh doesn't re-add.
         try {
           window.top.history.replaceState({}, '', window.top.location.pathname);
         } catch (e) {}
-
         Ecwid.openPage('cart');
       }
     });
   }
 
-  (function waitForEcwid(attempt) {
-    attempt = attempt || 0;
+  // Retry indefinitely, the same way the date blocker below does — Ecwid
+  // can take longer than a capped loop allows, and giving up silently was
+  // why this never ran.
+  function start() {
     if (typeof Ecwid === 'undefined' || !Ecwid.OnAPILoaded) {
-      if (attempt > 100) {
-        console.error('[OysterCart Cart Bridge] Ecwid never became available');
-        return;
-      }
-      setTimeout(function () { waitForEcwid(attempt + 1); }, 100);
+      setTimeout(start, 500);
       return;
     }
-    Ecwid.OnAPILoaded.add(function () { runCartCommand(); });
-  })();
+    console.log('[OysterCart Cart Bridge] Ecwid found, waiting for API');
+    Ecwid.OnAPILoaded.add(function () {
+      console.log('[OysterCart Cart Bridge] API loaded');
+      runCartCommand();
+    });
+  }
+
+  start();
 })();
 
 // Oyster Cart - Date Blocker for Mussel Madness Ticket
