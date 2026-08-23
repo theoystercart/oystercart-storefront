@@ -2,19 +2,20 @@
    OYSTER CART — ECWID CART HANDOFF BRIDGE
    =========================================================
 
-   Purpose:
-   Custom Wix product pages keep their own temporary cart.
+   Custom Wix storefront -> real Ecwid cart.
 
-   When customer clicks "Go to Cart", Wix navigates to:
+   IMPORTANT:
+   Products with the same Ecwid product ID but different
+   options MUST remain separate cart lines.
 
-   /online-store/!/~/cart/create=<BASE64_CART_JSON>
-
-   This script runs INSIDE the real Ecwid Wix storefront,
-   reads that cart payload, checks the real Ecwid cart,
-   adds anything missing, then opens the real cart.
-
-   This same file also contains the Mussel Madness
-   date blocker further below.
+   This version:
+   1. Decodes the Wix cart handoff.
+   2. Checks exact product + exact options.
+   3. Adds ONE cart line at a time.
+   4. Waits until Ecwid.Cart.get() confirms that exact
+      line exists before adding the next line.
+   5. Only opens the cart after every requested line
+      has been verified.
 ========================================================= */
 
 (function () {
@@ -22,12 +23,15 @@
 
   var PREFIX = '[OysterCart Cart Bridge]';
 
+  var VERIFY_INTERVAL_MS = 400;
+  var VERIFY_MAX_ATTEMPTS = 15;
+
   console.log(PREFIX, 'script running');
 
 
-  /* ---------------------------------------------------------
+  /* =======================================================
      LOGGING
-  --------------------------------------------------------- */
+  ======================================================= */
 
   function log() {
     var args =
@@ -49,27 +53,21 @@
   }
 
 
-  /* ---------------------------------------------------------
+  /* =======================================================
      UTF-8 BASE64 DECODING
-  --------------------------------------------------------- */
+  ======================================================= */
 
   function decodeBase64Utf8(base64) {
 
     try {
 
-      /*
-       * URL may still contain encoded characters.
-       */
       var decodedUrlPart =
         decodeURIComponent(base64);
-
 
       var binary =
         atob(decodedUrlPart);
 
-
       var bytes = [];
-
 
       for (
         var i = 0;
@@ -89,11 +87,9 @@
 
       }
 
-
       return decodeURIComponent(
         bytes.join('')
       );
-
 
     } catch (e) {
 
@@ -103,43 +99,25 @@
       );
 
       return null;
-
     }
-
   }
 
 
-  /* ---------------------------------------------------------
-     FIND CART CREATE PAYLOAD
-  --------------------------------------------------------- */
+  /* =======================================================
+     FIND cart/create PAYLOAD
+  ======================================================= */
 
   function findCartCreatePayload() {
 
     var sources = [];
 
-
-    /*
-     * 1. Current iframe URL
-     */
     try {
-
       sources.push(
         window.location.href
       );
-
     } catch (e) {}
 
 
-    /*
-     * 2. Ecwid/Wix route.
-     *
-     * This is the important one.
-     *
-     * Your logs showed:
-     *
-     * window.ec.config.currentRoute =
-     * ./online-store/!/~/cart/create=...
-     */
     try {
 
       if (
@@ -157,15 +135,10 @@
     } catch (e) {}
 
 
-    /*
-     * 3. Referrer as fallback
-     */
     try {
-
       sources.push(
         document.referrer
       );
-
     } catch (e) {}
 
 
@@ -178,24 +151,21 @@
       var source =
         sources[i];
 
-
       if (!source) {
         continue;
       }
 
-
       var marker =
         'cart/create=';
-
 
       var markerIndex =
         source.indexOf(marker);
 
-
-      if (markerIndex === -1) {
+      if (
+        markerIndex === -1
+      ) {
         continue;
       }
-
 
       var payload =
         source.substring(
@@ -203,16 +173,12 @@
           marker.length
         );
 
-
-      /*
-       * Remove any Wix/Ecwid query parameters
-       * that were appended after the payload.
-       */
       var questionIndex =
         payload.indexOf('?');
 
-
-      if (questionIndex !== -1) {
+      if (
+        questionIndex !== -1
+      ) {
 
         payload =
           payload.substring(
@@ -222,12 +188,12 @@
 
       }
 
-
       var ampIndex =
         payload.indexOf('&');
 
-
-      if (ampIndex !== -1) {
+      if (
+        ampIndex !== -1
+      ) {
 
         payload =
           payload.substring(
@@ -237,45 +203,34 @@
 
       }
 
-
       if (!payload) {
         continue;
       }
-
 
       log(
         'cart/create payload found in source',
         i
       );
 
-
       return payload;
-
     }
 
-
     return null;
-
   }
 
 
-  /* ---------------------------------------------------------
+  /* =======================================================
      LEGACY ocAdd SUPPORT
-
-     Keep this temporarily so old links still work.
-  --------------------------------------------------------- */
+  ======================================================= */
 
   function getLegacyParams() {
 
     var sources = [];
 
-
     try {
-
       sources.push(
         window.location.search
       );
-
     } catch (e) {}
 
 
@@ -297,11 +252,9 @@
 
 
     try {
-
       sources.push(
         document.referrer
       );
-
     } catch (e) {}
 
 
@@ -314,16 +267,12 @@
       var src =
         sources[i];
 
-
       if (
         !src ||
         src.indexOf('ocAdd') === -1
       ) {
-
         continue;
-
       }
-
 
       var qs =
         src.indexOf('?') !== -1
@@ -332,12 +281,10 @@
             )
           : src;
 
-
       try {
 
         var params =
           new URLSearchParams(qs);
-
 
         if (
           params.get('ocAdd')
@@ -347,24 +294,19 @@
             'legacy ocAdd params found'
           );
 
-
           return params;
-
         }
 
       } catch (e) {}
-
     }
 
-
     return null;
-
   }
 
 
-  /* ---------------------------------------------------------
-     NORMALIZE OPTIONS
-  --------------------------------------------------------- */
+  /* =======================================================
+     OPTION NORMALIZATION
+  ======================================================= */
 
   function normalizeValue(value) {
 
@@ -372,11 +314,8 @@
       value === undefined ||
       value === null
     ) {
-
       return '';
-
     }
-
 
     if (
       Array.isArray(value)
@@ -392,69 +331,186 @@
         })
         .sort()
         .join('|');
-
     }
-
 
     return String(value)
       .trim()
       .toLowerCase();
-
   }
 
 
+  function normalizeOptionObject(options) {
+
+    options =
+      options || {};
+
+    var normalized = {};
+
+    Object.keys(options)
+      .sort()
+      .forEach(
+        function (name) {
+
+          normalized[
+            String(name)
+              .trim()
+              .toLowerCase()
+          ] =
+            normalizeValue(
+              options[name]
+            );
+
+        }
+      );
+
+    return normalized;
+  }
+
+
+  /*
+   * EXACT option comparison.
+   *
+   * Previous version only checked option names contained
+   * in "expected".
+   *
+   * This version requires both cart positions to have
+   * exactly the same normalized option set.
+   */
   function optionsMatch(
     expected,
     actual
   ) {
 
-    expected =
-      expected || {};
+    var expectedNormalized =
+      normalizeOptionObject(
+        expected
+      );
 
-    actual =
-      actual || {};
+    var actualNormalized =
+      normalizeOptionObject(
+        actual
+      );
+
+    var expectedNames =
+      Object.keys(
+        expectedNormalized
+      );
+
+    var actualNames =
+      Object.keys(
+        actualNormalized
+      );
 
 
-    var names =
-      Object.keys(expected);
+    if (
+      expectedNames.length !==
+      actualNames.length
+    ) {
+
+      return false;
+    }
 
 
     for (
       var i = 0;
-      i < names.length;
+      i < expectedNames.length;
       i++
     ) {
 
       var name =
-        names[i];
+        expectedNames[i];
 
 
       if (
-        normalizeValue(
-          expected[name]
-        ) !==
-        normalizeValue(
-          actual[name]
-        )
+        !Object.prototype
+          .hasOwnProperty.call(
+            actualNormalized,
+            name
+          )
       ) {
 
         return false;
+      }
 
+
+      if (
+        expectedNormalized[name] !==
+        actualNormalized[name]
+      ) {
+
+        return false;
       }
 
     }
 
 
     return true;
-
   }
 
 
-  /* ---------------------------------------------------------
-     FIND QUANTITY OF MATCHING CART LINE
-  --------------------------------------------------------- */
+  /* =======================================================
+     CART ITEM HELPERS
+  ======================================================= */
 
-  function existingMatchingQuantity(
+  function getItemProductId(item) {
+
+    if (!item) {
+      return null;
+    }
+
+    /*
+     * Ecwid normally returns:
+     *
+     * item.product.id
+     *
+     * Keep fallbacks for diagnostics/compatibility.
+     */
+    if (
+      item.product &&
+      item.product.id !== undefined
+    ) {
+
+      return Number(
+        item.product.id
+      );
+    }
+
+    if (
+      item.productId !== undefined
+    ) {
+
+      return Number(
+        item.productId
+      );
+    }
+
+    if (
+      item.id !== undefined
+    ) {
+
+      return Number(
+        item.id
+      );
+    }
+
+    return null;
+  }
+
+
+  function getItemOptions(item) {
+
+    if (!item) {
+      return {};
+    }
+
+    return (
+      item.options ||
+      {}
+    );
+  }
+
+
+  function matchingQuantity(
     cart,
     requestedProduct
   ) {
@@ -465,7 +521,6 @@
     ) {
 
       return 0;
-
     }
 
 
@@ -476,34 +531,24 @@
       function (item) {
 
         if (
-          !item ||
-          !item.product
+          getItemProductId(item) !==
+          Number(
+            requestedProduct.id
+          )
         ) {
 
           return;
-
-        }
-
-
-        if (
-          Number(item.product.id) !==
-          Number(requestedProduct.id)
-        ) {
-
-          return;
-
         }
 
 
         if (
           !optionsMatch(
             requestedProduct.options || {},
-            item.options || {}
+            getItemOptions(item)
           )
         ) {
 
           return;
-
         }
 
 
@@ -517,21 +562,58 @@
 
 
     return total;
-
   }
 
 
-  /* ---------------------------------------------------------
-     SESSION GUARD
+  /* =======================================================
+     DIAGNOSTIC CART SUMMARY
+  ======================================================= */
 
-     Prevent accidental re-processing of the exact same
-     cart/create command during Ecwid/Wix route reloads.
-  --------------------------------------------------------- */
+  function summarizeCart(cart) {
+
+    if (
+      !cart ||
+      !Array.isArray(cart.items)
+    ) {
+
+      return [];
+    }
+
+
+    return cart.items.map(
+      function (item) {
+
+        return {
+
+          id:
+            getItemProductId(
+              item
+            ),
+
+          quantity:
+            Number(
+              item.quantity || 0
+            ),
+
+          options:
+            getItemOptions(
+              item
+            )
+
+        };
+
+      }
+    );
+  }
+
+
+  /* =======================================================
+     SESSION GUARD
+  ======================================================= */
 
   function getGuardKey(payload) {
 
     var hash = 0;
-
 
     for (
       var i = 0;
@@ -546,18 +628,14 @@
         ) +
         payload.charCodeAt(i);
 
-
       hash =
         hash & hash;
-
     }
-
 
     return (
       'oystercart_cart_import_' +
       String(hash)
     );
-
   }
 
 
@@ -574,9 +652,7 @@
     } catch (e) {
 
       return false;
-
     }
-
   }
 
 
@@ -590,16 +666,305 @@
       );
 
     } catch (e) {}
-
   }
 
 
-  /* ---------------------------------------------------------
-     ADD PRODUCTS SEQUENTIALLY
+  /* =======================================================
+     VERIFY EXACT CART LINE
 
-     Sequential callbacks make debugging much easier and
-     avoid multiple simultaneous Ecwid cart mutations.
-  --------------------------------------------------------- */
+     After addProduct callback fires, DON'T immediately
+     add the next item.
+
+     Poll the real cart until the exact option combination
+     reaches the quantity we expect.
+  ======================================================= */
+
+  function waitForExactCartLine(
+    job,
+    targetQuantity,
+    attempt,
+    callback
+  ) {
+
+    attempt =
+      attempt || 1;
+
+
+    Ecwid.Cart.get(
+      function (cart) {
+
+        var actualQuantity =
+          matchingQuantity(
+            cart,
+            job
+          );
+
+
+        log(
+          'verification #' + attempt,
+          {
+            id:
+              job.id,
+
+            options:
+              job.options || {},
+
+            targetQuantity:
+              targetQuantity,
+
+            actualQuantity:
+              actualQuantity,
+
+            cart:
+              summarizeCart(cart)
+          }
+        );
+
+
+        if (
+          actualQuantity >=
+          targetQuantity
+        ) {
+
+          log(
+            'VERIFIED exact cart line',
+            {
+              id:
+                job.id,
+
+              options:
+                job.options || {},
+
+              quantity:
+                actualQuantity
+            }
+          );
+
+
+          callback(
+            true,
+            cart
+          );
+
+          return;
+        }
+
+
+        if (
+          attempt >=
+          VERIFY_MAX_ATTEMPTS
+        ) {
+
+          error(
+            'VERIFY TIMEOUT — exact cart line not found',
+            {
+              job:
+                job,
+
+              targetQuantity:
+                targetQuantity,
+
+              actualQuantity:
+                actualQuantity,
+
+              cart:
+                summarizeCart(cart)
+            }
+          );
+
+
+          callback(
+            false,
+            cart
+          );
+
+          return;
+        }
+
+
+        setTimeout(
+          function () {
+
+            waitForExactCartLine(
+              job,
+              targetQuantity,
+              attempt + 1,
+              callback
+            );
+
+          },
+          VERIFY_INTERVAL_MS
+        );
+
+      }
+    );
+  }
+
+
+  /* =======================================================
+     ADD ONE EXACT CART LINE
+  ======================================================= */
+
+  function addAndVerify(
+    job,
+    done
+  ) {
+
+    /*
+     * First read current quantity of THIS exact line.
+     *
+     * Example:
+     *
+     * 1 kg currently = 0
+     * adding          = 1
+     * target          = 1
+     */
+    Ecwid.Cart.get(
+      function (beforeCart) {
+
+        var beforeQuantity =
+          matchingQuantity(
+            beforeCart,
+            job
+          );
+
+
+        var quantityToAdd =
+          Number(
+            job.quantity || 1
+          );
+
+
+        var targetQuantity =
+          beforeQuantity +
+          quantityToAdd;
+
+
+        log(
+          'adding exact cart line',
+          {
+            id:
+              job.id,
+
+            quantityToAdd:
+              quantityToAdd,
+
+            beforeQuantity:
+              beforeQuantity,
+
+            targetQuantity:
+              targetQuantity,
+
+            options:
+              job.options || {}
+          }
+        );
+
+
+        Ecwid.Cart.addProduct({
+
+          id:
+            Number(
+              job.id
+            ),
+
+          quantity:
+            quantityToAdd,
+
+          options:
+            job.options || {},
+
+          callback:
+            function (
+              success,
+              product,
+              callbackCart,
+              cartError
+            ) {
+
+              log(
+                'addProduct callback',
+                {
+                  success:
+                    success,
+
+                  productId:
+                    product
+                      ? product.id
+                      : null,
+
+                  error:
+                    cartError,
+
+                  requestedOptions:
+                    job.options || {}
+                }
+              );
+
+
+              if (!success) {
+
+                error(
+                  'could not add product',
+                  job,
+                  cartError
+                );
+
+
+                done(
+                  false
+                );
+
+                return;
+              }
+
+
+              /*
+               * Critical change:
+               *
+               * Callback success does NOT mean we immediately
+               * trust the cart mutation.
+               *
+               * Wait until Ecwid.Cart.get() can see the exact
+               * product + exact options.
+               */
+              setTimeout(
+                function () {
+
+                  waitForExactCartLine(
+                    job,
+                    targetQuantity,
+                    1,
+                    function (
+                      verified
+                    ) {
+
+                      done(
+                        verified
+                      );
+
+                    }
+                  );
+
+                },
+                VERIFY_INTERVAL_MS
+              );
+
+            }
+
+        });
+
+      }
+    );
+  }
+
+
+  /* =======================================================
+     ADD JOBS SEQUENTIALLY
+
+     Job 2 is not started until Job 1 has been verified
+     in the real Ecwid cart.
+  ======================================================= */
 
   function addProductsSequentially(
     jobs,
@@ -608,13 +973,15 @@
   ) {
 
     if (
-      index >= jobs.length
+      index >=
+      jobs.length
     ) {
 
-      done();
+      done(
+        true
+      );
 
       return;
-
     }
 
 
@@ -623,95 +990,158 @@
 
 
     log(
-      'adding product',
-      {
-        id:
-          job.id,
-
-        quantity:
-          job.quantity,
-
-        options:
-          job.options || {}
-      }
+      'starting job ' +
+      (index + 1) +
+      ' of ' +
+      jobs.length,
+      job
     );
 
 
-    var addObject = {
+    addAndVerify(
+      job,
+      function (verified) {
 
-      id:
-        Number(job.id),
+        if (!verified) {
 
-      quantity:
-        Number(
-          job.quantity || 1
-        ),
-
-      options:
-        job.options || {},
-
-      callback:
-        function (
-          success,
-          product,
-          cart,
-          cartError
-        ) {
-
-          log(
-            'addProduct callback',
-            {
-              success:
-                success,
-
-              productId:
-                product
-                  ? product.id
-                  : null,
-
-              error:
-                cartError
-            }
+          error(
+            'cart import stopped because this line could not be verified',
+            job
           );
 
 
-          if (!success) {
-
-            error(
-              'could not add product',
-              job,
-              cartError
-            );
-
-
-            /*
-             * Continue with remaining products rather
-             * than blocking the whole cart.
-             */
-          }
-
-
-          addProductsSequentially(
-            jobs,
-            index + 1,
-            done
+          done(
+            false
           );
 
+          return;
         }
 
-    };
 
+        /*
+         * Give Ecwid a little extra time after verification
+         * before mutating the cart again.
+         */
+        setTimeout(
+          function () {
 
-    Ecwid.Cart.addProduct(
-      addObject
+            addProductsSequentially(
+              jobs,
+              index + 1,
+              done
+            );
+
+          },
+          300
+        );
+
+      }
     );
-
   }
 
 
-  /* ---------------------------------------------------------
-     IMPORT PREFILLED CART INTO REAL ECWID CART
-  --------------------------------------------------------- */
+  /* =======================================================
+     VERIFY COMPLETE REQUESTED CART
+  ======================================================= */
+
+  function verifyRequestedCart(
+    requestedProducts,
+    callback
+  ) {
+
+    Ecwid.Cart.get(
+      function (cart) {
+
+        var failures = [];
+
+
+        requestedProducts.forEach(
+          function (requested) {
+
+            var expected =
+              Number(
+                requested.quantity ||
+                1
+              );
+
+
+            var actual =
+              matchingQuantity(
+                cart,
+                requested
+              );
+
+
+            if (
+              actual < expected
+            ) {
+
+              failures.push({
+
+                id:
+                  requested.id,
+
+                options:
+                  requested.options ||
+                  {},
+
+                expected:
+                  expected,
+
+                actual:
+                  actual
+
+              });
+
+            }
+
+          }
+        );
+
+
+        log(
+          'FINAL CART SUMMARY',
+          summarizeCart(cart)
+        );
+
+
+        if (
+          failures.length > 0
+        ) {
+
+          error(
+            'FINAL CART VERIFICATION FAILED',
+            failures
+          );
+
+
+          callback(
+            false,
+            cart
+          );
+
+          return;
+        }
+
+
+        log(
+          'FINAL CART VERIFIED — all requested option combinations exist separately'
+        );
+
+
+        callback(
+          true,
+          cart
+        );
+
+      }
+    );
+  }
+
+
+  /* =======================================================
+     PROCESS cart/create
+  ======================================================= */
 
   function processCartCreate(
     encodedPayload
@@ -732,11 +1162,11 @@
         'this cart payload was already processed'
       );
 
-
-      Ecwid.openPage('cart');
+      Ecwid.openPage(
+        'cart'
+      );
 
       return;
-
     }
 
 
@@ -753,7 +1183,6 @@
       );
 
       return;
-
     }
 
 
@@ -763,7 +1192,9 @@
     try {
 
       cartPayload =
-        JSON.parse(json);
+        JSON.parse(
+          json
+        );
 
     } catch (e) {
 
@@ -774,7 +1205,6 @@
       );
 
       return;
-
     }
 
 
@@ -797,19 +1227,20 @@
       );
 
       return;
-
     }
 
 
     /*
-     * Get the REAL Ecwid cart first.
+     * Get REAL Ecwid cart.
      */
     Ecwid.Cart.get(
       function (currentCart) {
 
         log(
           'real Ecwid cart loaded',
-          currentCart
+          summarizeCart(
+            currentCart
+          )
         );
 
 
@@ -829,7 +1260,7 @@
 
 
             var existingQty =
-              existingMatchingQuantity(
+              matchingQuantity(
                 currentCart,
                 requestedProduct
               );
@@ -862,16 +1293,11 @@
             );
 
 
-            /*
-             * Ecwid already has enough of this exact
-             * product + option combination.
-             */
             if (
               missingQty <= 0
             ) {
 
               return;
-
             }
 
 
@@ -896,31 +1322,42 @@
 
 
         /*
-         * Nothing missing:
-         * Ecwid's native cart/create may already
-         * have populated everything.
+         * Already present.
          */
         if (
           jobs.length === 0
         ) {
 
           log(
-            'real cart already contains requested items'
+            'real cart already contains all requested items'
           );
 
 
-          markProcessed(
-            encodedPayload
-          );
+          verifyRequestedCart(
+            cartPayload.products,
+            function (
+              verified
+            ) {
 
+              if (
+                verified
+              ) {
 
-          Ecwid.openPage(
-            'cart'
+                markProcessed(
+                  encodedPayload
+                );
+
+                Ecwid.openPage(
+                  'cart'
+                );
+
+              }
+
+            }
           );
 
 
           return;
-
         }
 
 
@@ -933,29 +1370,56 @@
         addProductsSequentially(
           jobs,
           0,
-          function () {
+          function (
+            success
+          ) {
+
+            if (!success) {
+
+              error(
+                'cart import did not complete successfully'
+              );
+
+              return;
+            }
+
 
             log(
-              'cart import finished'
-            );
-
-
-            markProcessed(
-              encodedPayload
+              'all add jobs individually verified'
             );
 
 
             /*
-             * Read cart one final time for diagnostics.
+             * One final verification against the ORIGINAL
+             * requested cart payload.
              */
-            Ecwid.Cart.get(
+            verifyRequestedCart(
+              cartPayload.products,
               function (
+                verified,
                 finalCart
               ) {
 
+                if (!verified) {
+
+                  error(
+                    'not opening cart because final verification failed',
+                    summarizeCart(
+                      finalCart
+                    )
+                  );
+
+                  return;
+                }
+
+
+                markProcessed(
+                  encodedPayload
+                );
+
+
                 log(
-                  'FINAL REAL CART',
-                  finalCart
+                  'cart import finished successfully'
                 );
 
 
@@ -971,13 +1435,12 @@
 
       }
     );
-
   }
 
 
-  /* ---------------------------------------------------------
+  /* =======================================================
      LEGACY SINGLE PRODUCT COMMAND
-  --------------------------------------------------------- */
+  ======================================================= */
 
   function processLegacyCommand(
     params
@@ -1033,7 +1496,6 @@
             )
           );
 
-
       } catch (e) {
 
         error(
@@ -1046,22 +1508,7 @@
     }
 
 
-    log(
-      'legacy add command',
-      {
-        id:
-          productId,
-
-        quantity:
-          qty,
-
-        options:
-          options
-      }
-    );
-
-
-    Ecwid.Cart.addProduct({
+    var legacyJob = {
 
       id:
         productId,
@@ -1070,55 +1517,64 @@
         qty,
 
       options:
-        options,
+        options
 
-      callback:
-        function (
-          success,
-          product,
-          cart,
-          cartError
+    };
+
+
+    log(
+      'legacy add command',
+      legacyJob
+    );
+
+
+    addAndVerify(
+      legacyJob,
+      function (
+        verified
+      ) {
+
+        if (
+          verified
         ) {
 
           log(
-            'legacy add result',
-            success,
-            cartError
+            'legacy cart line verified'
           );
 
+          Ecwid.openPage(
+            'cart'
+          );
 
-          if (success) {
+        } else {
 
-            Ecwid.openPage(
-              'cart'
-            );
-
-          }
+          error(
+            'legacy cart line could not be verified'
+          );
 
         }
 
-    });
+      }
+    );
 
 
     return true;
-
   }
 
 
-  /* ---------------------------------------------------------
+  /* =======================================================
      RUN CART COMMAND
-  --------------------------------------------------------- */
+  ======================================================= */
 
   function runCartCommand() {
 
-    /*
-     * NEW cart/create handoff
-     */
     var cartPayload =
       findCartCreatePayload();
 
 
-    if (cartPayload) {
+    if (
+      cartPayload
+    ) {
 
       log(
         'processing cart/create command'
@@ -1131,13 +1587,9 @@
 
 
       return;
-
     }
 
 
-    /*
-     * OLD ?ocAdd= handoff
-     */
     var legacyParams =
       getLegacyParams();
 
@@ -1149,20 +1601,18 @@
     ) {
 
       return;
-
     }
 
 
     log(
       'no cart command found'
     );
-
   }
 
 
-  /* ---------------------------------------------------------
+  /* =======================================================
      WAIT FOR ECWID
-  --------------------------------------------------------- */
+  ======================================================= */
 
   function startCartBridge() {
 
@@ -1177,9 +1627,7 @@
         500
       );
 
-
       return;
-
     }
 
 
@@ -1191,10 +1639,6 @@
         );
 
 
-        /*
-         * Small delay gives the Wix integration time
-         * to populate window.ec.config.currentRoute.
-         */
         setTimeout(
           runCartCommand,
           250
@@ -1202,7 +1646,6 @@
 
       }
     );
-
   }
 
 
@@ -1555,12 +1998,6 @@
             }
 
 
-            /*
-             * Determine actual month.
-             *
-             * Vue Datepicker may show
-             * previous / next month cells.
-             */
             var cellMonth =
               month;
 
@@ -1588,9 +2025,6 @@
                 day > 20
               ) {
 
-                /*
-                 * Previous month
-                 */
                 cellMonth =
                   month - 1;
 
@@ -1611,9 +2045,6 @@
 
               } else {
 
-                /*
-                 * Next month
-                 */
                 cellMonth =
                   month + 1;
 
@@ -1663,9 +2094,6 @@
               false;
 
 
-            /*
-             * Past dates
-             */
             if (
               cellDate <
               todaySG
@@ -1677,9 +2105,6 @@
             }
 
 
-            /*
-             * Today's cutoff
-             */
             if (
               dateString ===
                 todayKey &&
@@ -1692,9 +2117,6 @@
             }
 
 
-            /*
-             * Weekday restriction
-             */
             if (
               BLOCKED_WEEKDAYS
                 .indexOf(
@@ -1708,9 +2130,6 @@
             }
 
 
-            /*
-             * Explicit blocks
-             */
             if (
               BLOCKED_DATES
                 .indexOf(
@@ -1725,13 +2144,11 @@
 
 
             /*
-             * Explicit allowed dates
-             *
-             * Override weekday restriction,
-             * but NOT:
+             * ALLOWED_DATES overrides weekday blocks,
+             * but not:
              *
              * - past dates
-             * - explicit BLOCKED_DATES
+             * - explicit blocked dates
              * - today's cutoff
              */
             if (
