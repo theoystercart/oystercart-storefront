@@ -4,35 +4,26 @@
 
    Custom Wix storefront -> real Ecwid cart.
 
-   This version is deliberately defensive about how Ecwid
-   returns cart option data.
-
    IMPORTANT:
-   - Wix sends options as:
-       { "Size": "Large", "Quantity": "18 pieces" }
+   Wix sends the customer to Ecwid using:
 
-   - Ecwid may return cart options as:
-       { "Size": "Large", ... }
+       cart/create=<payload>
 
-     OR as an array such as:
-       [
-         { name: "Size", value: "Large" },
-         { name: "Quantity", value: "18 pieces" }
-       ]
+   Ecwid itself processes that cart/create command.
 
-   The previous bridge assumed item.options was always a
-   plain object. That can make a correctly-added variation
-   look like "actualQuantity: 0" forever.
+   Therefore this bridge MUST NOT call Cart.addProduct()
+   for cart/create commands.
 
-   This version:
-   1. Decodes the Wix cart handoff.
-   2. Normalizes several possible Ecwid option structures.
-   3. Matches product + requested option selections.
-   4. Adds ONE cart line at a time.
-   5. Logs RAW cart state after every add.
-   6. Detects whether Ecwid added the exact requested line
-      or merged/normalized it into another line.
-   7. Only opens the cart after requested lines verify.
+   The bridge now:
+   1. Finds and decodes the Wix cart/create payload.
+   2. Lets Ecwid perform the native cart import.
+   3. Waits for the real Ecwid cart to populate.
+   4. Normalizes Ecwid option data.
+   5. Verifies product + options + quantity.
+   6. Opens the cart only after verification.
+
+   Cart.addProduct() is retained ONLY for the old
+   legacy ocAdd command.
 ========================================================= */
 
 (function () {
@@ -41,7 +32,7 @@
   var PREFIX = '[OysterCart Cart Bridge]';
 
   var VERIFY_INTERVAL_MS = 500;
-  var VERIFY_MAX_ATTEMPTS = 12;
+  var VERIFY_MAX_ATTEMPTS = 20;
 
   console.log(PREFIX, 'script running');
 
@@ -51,31 +42,55 @@
   ======================================================= */
 
   function log() {
+
     var args =
       [PREFIX].concat(
-        Array.prototype.slice.call(arguments)
+        Array.prototype.slice.call(
+          arguments
+        )
       );
 
-    console.log.apply(console, args);
+    console.log.apply(
+      console,
+      args
+    );
+
   }
 
 
   function error() {
+
     var args =
       [PREFIX].concat(
-        Array.prototype.slice.call(arguments)
+        Array.prototype.slice.call(
+          arguments
+        )
       );
 
-    console.error.apply(console, args);
+    console.error.apply(
+      console,
+      args
+    );
+
   }
 
 
   function safeStringify(value) {
+
     try {
-      return JSON.stringify(value, null, 2);
+
+      return JSON.stringify(
+        value,
+        null,
+        2
+      );
+
     } catch (e) {
+
       return String(value);
+
     }
+
   }
 
 
@@ -88,12 +103,19 @@
     try {
 
       var decodedUrlPart =
-        decodeURIComponent(base64);
+        decodeURIComponent(
+          base64
+        );
+
 
       var binary =
-        atob(decodedUrlPart);
+        atob(
+          decodedUrlPart
+        );
+
 
       var bytes = [];
+
 
       for (
         var i = 0;
@@ -113,9 +135,11 @@
 
       }
 
+
       return decodeURIComponent(
         bytes.join('')
       );
+
 
     } catch (e) {
 
@@ -125,7 +149,9 @@
       );
 
       return null;
+
     }
+
   }
 
 
@@ -137,10 +163,13 @@
 
     var sources = [];
 
+
     try {
+
       sources.push(
         window.location.href
       );
+
     } catch (e) {}
 
 
@@ -162,9 +191,11 @@
 
 
     try {
+
       sources.push(
         document.referrer
       );
+
     } catch (e) {}
 
 
@@ -177,15 +208,21 @@
       var source =
         sources[i];
 
+
       if (!source) {
         continue;
       }
 
+
       var marker =
         'cart/create=';
 
+
       var markerIndex =
-        source.indexOf(marker);
+        source.indexOf(
+          marker
+        );
+
 
       if (
         markerIndex === -1
@@ -193,14 +230,17 @@
         continue;
       }
 
+
       var payload =
         source.substring(
           markerIndex +
           marker.length
         );
 
+
       var questionIndex =
         payload.indexOf('?');
+
 
       if (
         questionIndex !== -1
@@ -214,8 +254,10 @@
 
       }
 
+
       var ampIndex =
         payload.indexOf('&');
+
 
       if (
         ampIndex !== -1
@@ -229,19 +271,25 @@
 
       }
 
+
       if (!payload) {
         continue;
       }
+
 
       log(
         'cart/create payload found in source',
         i
       );
 
+
       return payload;
+
     }
 
+
     return null;
+
   }
 
 
@@ -253,10 +301,13 @@
 
     var sources = [];
 
+
     try {
+
       sources.push(
         window.location.search
       );
+
     } catch (e) {}
 
 
@@ -278,9 +329,11 @@
 
 
     try {
+
       sources.push(
         document.referrer
       );
+
     } catch (e) {}
 
 
@@ -293,12 +346,18 @@
       var src =
         sources[i];
 
+
       if (
         !src ||
-        src.indexOf('ocAdd') === -1
+        src.indexOf(
+          'ocAdd'
+        ) === -1
       ) {
+
         continue;
+
       }
+
 
       var qs =
         src.indexOf('?') !== -1
@@ -307,26 +366,37 @@
             )
           : src;
 
+
       try {
 
         var params =
-          new URLSearchParams(qs);
+          new URLSearchParams(
+            qs
+          );
+
 
         if (
-          params.get('ocAdd')
+          params.get(
+            'ocAdd'
+          )
         ) {
 
           log(
             'legacy ocAdd params found'
           );
 
+
           return params;
+
         }
 
       } catch (e) {}
+
     }
 
+
     return null;
+
   }
 
 
@@ -344,6 +414,7 @@
     )
       .trim()
       .toLowerCase();
+
   }
 
 
@@ -353,46 +424,59 @@
       value === undefined ||
       value === null
     ) {
+
       return '';
+
     }
 
 
     if (
-      Array.isArray(value)
+      Array.isArray(
+        value
+      )
     ) {
 
       return value
-        .map(function (item) {
+        .map(
+          function (item) {
 
-          if (
-            typeof item !== 'object' ||
-            item === null
-          ) {
+            if (
+              typeof item !== 'object' ||
+              item === null
+            ) {
 
-            return String(item)
+              return String(
+                item
+              )
+                .trim()
+                .toLowerCase();
+
+            }
+
+
+            var nestedValue =
+              item.value !== undefined
+                ? item.value
+                : item.text !== undefined
+                  ? item.text
+                  : item.name !== undefined
+                    ? item.name
+                    : safeStringify(
+                        item
+                      );
+
+
+            return String(
+              nestedValue
+            )
               .trim()
               .toLowerCase();
 
           }
-
-
-          var nestedValue =
-            item.value !== undefined
-              ? item.value
-              : item.text !== undefined
-                ? item.text
-                : item.name !== undefined
-                  ? item.name
-                  : safeStringify(item);
-
-
-          return String(nestedValue)
-            .trim()
-            .toLowerCase();
-
-        })
+        )
         .sort()
         .join('|');
+
     }
 
 
@@ -403,32 +487,46 @@
       if (
         value.value !== undefined
       ) {
+
         return normalizeValue(
           value.value
         );
+
       }
+
 
       if (
         value.text !== undefined
       ) {
+
         return normalizeValue(
           value.text
         );
+
       }
 
-      return safeStringify(value)
+
+      return safeStringify(
+        value
+      )
         .trim()
         .toLowerCase();
+
     }
 
 
-    return String(value)
+    return String(
+      value
+    )
       .trim()
       .toLowerCase();
+
   }
 
 
-  function normalizeOptionObject(options) {
+  function normalizeOptionObject(
+    options
+  ) {
 
     var normalized = {};
 
@@ -439,11 +537,14 @@
     ) {
 
       return normalized;
+
     }
 
 
     if (
-      Array.isArray(options)
+      Array.isArray(
+        options
+      )
     ) {
 
       options.forEach(
@@ -453,14 +554,18 @@
             entry === undefined ||
             entry === null
           ) {
+
             return;
+
           }
 
 
           if (
             typeof entry !== 'object'
           ) {
+
             return;
+
           }
 
 
@@ -495,9 +600,13 @@
           ) {
 
             normalized[
-              normalizeName(name)
+              normalizeName(
+                name
+              )
             ] =
-              normalizeValue(value);
+              normalizeValue(
+                value
+              );
 
           }
 
@@ -506,6 +615,7 @@
 
 
       return normalized;
+
     }
 
 
@@ -513,7 +623,9 @@
       typeof options === 'object'
     ) {
 
-      Object.keys(options)
+      Object.keys(
+        options
+      )
         .forEach(
           function (name) {
 
@@ -522,7 +634,9 @@
 
 
             if (
-              /^\d+$/.test(name) &&
+              /^\d+$/.test(
+                name
+              ) &&
               value &&
               typeof value === 'object'
             ) {
@@ -533,9 +647,13 @@
                 );
 
 
-              Object.keys(nested)
+              Object.keys(
+                nested
+              )
                 .forEach(
-                  function (nestedName) {
+                  function (
+                    nestedName
+                  ) {
 
                     normalized[
                       nestedName
@@ -549,23 +667,30 @@
 
 
               return;
+
             }
 
 
             normalized[
-              normalizeName(name)
+              normalizeName(
+                name
+              )
             ] =
-              normalizeValue(value);
+              normalizeValue(
+                value
+              );
 
           }
         );
 
 
       return normalized;
+
     }
 
 
     return normalized;
+
   }
 
 
@@ -579,10 +704,12 @@
         expected
       );
 
+
     var actualNormalized =
       normalizeOptionObject(
         actual
       );
+
 
     var expectedNames =
       Object.keys(
@@ -609,6 +736,7 @@
       ) {
 
         return false;
+
       }
 
 
@@ -618,12 +746,14 @@
       ) {
 
         return false;
+
       }
 
     }
 
 
     return true;
+
   }
 
 
@@ -631,7 +761,9 @@
      CART ITEM HELPERS
   ======================================================= */
 
-  function getItemProductId(item) {
+  function getItemProductId(
+    item
+  ) {
 
     if (!item) {
       return null;
@@ -646,6 +778,7 @@
       return Number(
         item.product.id
       );
+
     }
 
 
@@ -656,6 +789,7 @@
       return Number(
         item.productId
       );
+
     }
 
 
@@ -666,14 +800,18 @@
       return Number(
         item.id
       );
+
     }
 
 
     return null;
+
   }
 
 
-  function getItemQuantity(item) {
+  function getItemQuantity(
+    item
+  ) {
 
     if (!item) {
       return 0;
@@ -685,16 +823,21 @@
       item.count ||
       0
     );
+
   }
 
 
-  function getItemOptionCandidates(item) {
+  function getItemOptionCandidates(
+    item
+  ) {
 
     var candidates = [];
 
 
     if (!item) {
+
       return candidates;
+
     }
 
 
@@ -792,6 +935,7 @@
 
 
     return candidates;
+
   }
 
 
@@ -834,6 +978,7 @@
               candidates[i].value
             )
         };
+
       }
 
     }
@@ -852,6 +997,7 @@
       normalized:
         {}
     };
+
   }
 
 
@@ -862,10 +1008,13 @@
 
     if (
       !cart ||
-      !Array.isArray(cart.items)
+      !Array.isArray(
+        cart.items
+      )
     ) {
 
       return 0;
+
     }
 
 
@@ -876,20 +1025,24 @@
       function (item) {
 
         if (
-          getItemProductId(item) !==
+          getItemProductId(
+            item
+          ) !==
           Number(
             requestedProduct.id
           )
         ) {
 
           return;
+
         }
 
 
         var optionMatch =
           findMatchingOptionCandidate(
             item,
-            requestedProduct.options || {}
+            requestedProduct.options ||
+            {}
           );
 
 
@@ -898,6 +1051,7 @@
         ) {
 
           return;
+
         }
 
 
@@ -911,6 +1065,7 @@
 
 
     return total;
+
   }
 
 
@@ -921,10 +1076,13 @@
 
     if (
       !cart ||
-      !Array.isArray(cart.items)
+      !Array.isArray(
+        cart.items
+      )
     ) {
 
       return 0;
+
     }
 
 
@@ -935,8 +1093,12 @@
       function (item) {
 
         if (
-          getItemProductId(item) ===
-          Number(productId)
+          getItemProductId(
+            item
+          ) ===
+          Number(
+            productId
+          )
         ) {
 
           total +=
@@ -951,6 +1113,7 @@
 
 
     return total;
+
   }
 
 
@@ -958,7 +1121,9 @@
      DIAGNOSTIC CART SUMMARY
   ======================================================= */
 
-  function summarizeItem(item) {
+  function summarizeItem(
+    item
+  ) {
 
     var candidates =
       getItemOptionCandidates(
@@ -1010,9 +1175,12 @@
 
       optionCandidates:
         candidates.map(
-          function (candidate) {
+          function (
+            candidate
+          ) {
 
             return {
+
               source:
                 candidate.source,
 
@@ -1023,23 +1191,30 @@
                 normalizeOptionObject(
                   candidate.value
                 )
+
             };
 
           }
         )
 
     };
+
   }
 
 
-  function summarizeCart(cart) {
+  function summarizeCart(
+    cart
+  ) {
 
     if (
       !cart ||
-      !Array.isArray(cart.items)
+      !Array.isArray(
+        cart.items
+      )
     ) {
 
       return [];
+
     }
 
 
@@ -1052,6 +1227,7 @@
 
       }
     );
+
   }
 
 
@@ -1069,11 +1245,13 @@
 
 
     log(
-      label + ' SUMMARY',
+      label +
+      ' SUMMARY',
       summarizeCart(
         cart
       )
     );
+
   }
 
 
@@ -1081,7 +1259,9 @@
      SESSION GUARD
   ======================================================= */
 
-  function getGuardKey(payload) {
+  function getGuardKey(
+    payload
+  ) {
 
     var hash = 0;
 
@@ -1097,53 +1277,71 @@
           (hash << 5) -
           hash
         ) +
-        payload.charCodeAt(i);
+        payload.charCodeAt(
+          i
+        );
 
 
       hash =
         hash & hash;
+
     }
 
 
     return (
-      'oystercart_cart_import_v3_' +
-      String(hash)
+      'oystercart_cart_import_v4_' +
+      String(
+        hash
+      )
     );
+
   }
 
 
-  function alreadyProcessed(payload) {
+  function alreadyProcessed(
+    payload
+  ) {
 
     try {
 
       return (
         sessionStorage.getItem(
-          getGuardKey(payload)
+          getGuardKey(
+            payload
+          )
         ) === 'done'
       );
 
     } catch (e) {
 
       return false;
+
     }
+
   }
 
 
-  function markProcessed(payload) {
+  function markProcessed(
+    payload
+  ) {
 
     try {
 
       sessionStorage.setItem(
-        getGuardKey(payload),
+        getGuardKey(
+          payload
+        ),
         'done'
       );
 
     } catch (e) {}
+
   }
 
 
   /* =======================================================
      VERIFY EXACT CART LINE
+     Used by LEGACY ocAdd only
   ======================================================= */
 
   function waitForExactCartLine(
@@ -1176,17 +1374,21 @@
 
 
         log(
-          'verification #' + attempt,
+          'verification #' +
+          attempt,
           {
+
             id:
               job.id,
 
             requestedOptions:
-              job.options || {},
+              job.options ||
+              {},
 
             normalizedRequestedOptions:
               normalizeOptionObject(
-                job.options || {}
+                job.options ||
+                {}
               ),
 
             targetQuantity:
@@ -1205,6 +1407,7 @@
               summarizeCart(
                 cart
               )
+
           }
         );
 
@@ -1217,14 +1420,17 @@
           log(
             'VERIFIED requested cart line',
             {
+
               id:
                 job.id,
 
               options:
-                job.options || {},
+                job.options ||
+                {},
 
               quantity:
                 actualQuantity
+
             }
           );
 
@@ -1237,6 +1443,7 @@
 
 
           return;
+
         }
 
 
@@ -1248,6 +1455,7 @@
           error(
             'PRODUCT QUANTITY INCREASED BUT REQUESTED OPTIONS DID NOT MATCH',
             {
+
               job:
                 job,
 
@@ -1266,6 +1474,7 @@
                 summarizeCart(
                   cart
                 )
+
             }
           );
 
@@ -1278,6 +1487,7 @@
 
 
           return;
+
         }
 
 
@@ -1289,6 +1499,7 @@
           error(
             'VERIFY TIMEOUT — requested cart line not found',
             {
+
               job:
                 job,
 
@@ -1313,6 +1524,7 @@
                 summarizeCart(
                   cart
                 )
+
             }
           );
 
@@ -1325,6 +1537,7 @@
 
 
           return;
+
         }
 
 
@@ -1345,11 +1558,13 @@
 
       }
     );
+
   }
 
 
   /* =======================================================
-     ADD ONE CART LINE + INSPECT RAW RESULT
+     ADD ONE CART LINE
+     LEGACY ocAdd ONLY
   ======================================================= */
 
   function addAndVerify(
@@ -1358,7 +1573,9 @@
   ) {
 
     Ecwid.Cart.get(
-      function (beforeCart) {
+      function (
+        beforeCart
+      ) {
 
         var beforeQuantity =
           matchingQuantity(
@@ -1376,7 +1593,8 @@
 
         var quantityToAdd =
           Number(
-            job.quantity || 1
+            job.quantity ||
+            1
           );
 
 
@@ -1386,14 +1604,15 @@
 
 
         logRawCart(
-          'RAW CART BEFORE ADD',
+          'RAW CART BEFORE LEGACY ADD',
           beforeCart
         );
 
 
         log(
-          'adding cart line',
+          'legacy adding cart line',
           {
+
             id:
               job.id,
 
@@ -1410,12 +1629,9 @@
               targetQuantity,
 
             options:
-              job.options || {},
+              job.options ||
+              {}
 
-            normalizedOptions:
-              normalizeOptionObject(
-                job.options || {}
-              )
           }
         );
 
@@ -1431,7 +1647,8 @@
             quantityToAdd,
 
           options:
-            job.options || {},
+            job.options ||
+            {},
 
           callback:
             function (
@@ -1442,19 +1659,23 @@
             ) {
 
               log(
-                'addProduct callback',
+                'legacy addProduct callback',
                 {
+
                   success:
                     success,
 
                   product:
-                    product || null,
+                    product ||
+                    null,
 
                   error:
                     cartError,
 
                   requestedOptions:
-                    job.options || {}
+                    job.options ||
+                    {}
+
                 }
               );
 
@@ -1464,17 +1685,19 @@
               ) {
 
                 logRawCart(
-                  'RAW CALLBACK CART',
+                  'RAW LEGACY CALLBACK CART',
                   callbackCart
                 );
 
               }
 
 
-              if (!success) {
+              if (
+                !success
+              ) {
 
                 error(
-                  'could not add product',
+                  'could not add legacy product',
                   job,
                   cartError
                 );
@@ -1487,48 +1710,35 @@
 
 
                 return;
+
               }
 
 
-              Ecwid.Cart.get(
-                function (
-                  immediateCart
-                ) {
+              setTimeout(
+                function () {
 
-                  logRawCart(
-                    'RAW CART IMMEDIATELY AFTER ADD',
-                    immediateCart
-                  );
+                  waitForExactCartLine(
+                    job,
+                    targetQuantity,
+                    totalProductBefore,
+                    1,
+                    function (
+                      verified,
+                      verifiedCart,
+                      reason
+                    ) {
 
-
-                  setTimeout(
-                    function () {
-
-                      waitForExactCartLine(
-                        job,
-                        targetQuantity,
-                        totalProductBefore,
-                        1,
-                        function (
-                          verified,
-                          verifiedCart,
-                          reason
-                        ) {
-
-                          done(
-                            verified,
-                            reason,
-                            verifiedCart
-                          );
-
-                        }
+                      done(
+                        verified,
+                        reason,
+                        verifiedCart
                       );
 
-                    },
-                    VERIFY_INTERVAL_MS
+                    }
                   );
 
-                }
+                },
+                VERIFY_INTERVAL_MS
               );
 
             }
@@ -1537,217 +1747,29 @@
 
       }
     );
-  }
 
-
-  /* =======================================================
-     ADD JOBS SEQUENTIALLY
-  ======================================================= */
-
-  function addProductsSequentially(
-    jobs,
-    index,
-    done
-  ) {
-
-    if (
-      index >=
-      jobs.length
-    ) {
-
-      done(
-        true
-      );
-
-      return;
-    }
-
-
-    var job =
-      jobs[index];
-
-
-    log(
-      'starting job ' +
-      (index + 1) +
-      ' of ' +
-      jobs.length,
-      job
-    );
-
-
-    addAndVerify(
-      job,
-      function (
-        verified,
-        reason,
-        cart
-      ) {
-
-        if (!verified) {
-
-          error(
-            'cart import stopped',
-            {
-              reason:
-                reason,
-
-              job:
-                job,
-
-              cart:
-                summarizeCart(
-                  cart
-                )
-            }
-          );
-
-
-          done(
-            false,
-            reason,
-            cart
-          );
-
-
-          return;
-        }
-
-
-        setTimeout(
-          function () {
-
-            addProductsSequentially(
-              jobs,
-              index + 1,
-              done
-            );
-
-          },
-          350
-        );
-
-      }
-    );
-  }
-
-
-  /* =======================================================
-     VERIFY COMPLETE REQUESTED CART
-  ======================================================= */
-
-  function verifyRequestedCart(
-    requestedProducts,
-    callback
-  ) {
-
-    Ecwid.Cart.get(
-      function (cart) {
-
-        var failures = [];
-
-
-        requestedProducts.forEach(
-          function (requested) {
-
-            var expected =
-              Number(
-                requested.quantity ||
-                1
-              );
-
-
-            var actual =
-              matchingQuantity(
-                cart,
-                requested
-              );
-
-
-            if (
-              actual < expected
-            ) {
-
-              failures.push({
-
-                id:
-                  requested.id,
-
-                options:
-                  requested.options ||
-                  {},
-
-                normalizedOptions:
-                  normalizeOptionObject(
-                    requested.options ||
-                    {}
-                  ),
-
-                expected:
-                  expected,
-
-                actual:
-                  actual
-
-              });
-
-            }
-
-          }
-        );
-
-
-        logRawCart(
-          'FINAL RAW CART',
-          cart
-        );
-
-
-        if (
-          failures.length > 0
-        ) {
-
-          error(
-            'FINAL CART VERIFICATION FAILED',
-            failures
-          );
-
-
-          callback(
-            false,
-            cart
-          );
-
-
-          return;
-        }
-
-
-        log(
-          'FINAL CART VERIFIED — requested products/options found'
-        );
-
-
-        callback(
-          true,
-          cart
-        );
-
-      }
-    );
   }
 
 
   /* =======================================================
      PROCESS cart/create
+
+     IMPORTANT:
+     Ecwid processes cart/create itself.
+
+     This function DOES NOT call Cart.addProduct().
   ======================================================= */
 
   function processCartCreate(
     encodedPayload
   ) {
 
-    if (!encodedPayload) {
+    if (
+      !encodedPayload
+    ) {
+
       return;
+
     }
 
 
@@ -1768,6 +1790,7 @@
 
 
       return;
+
     }
 
 
@@ -1784,6 +1807,7 @@
       );
 
       return;
+
     }
 
 
@@ -1805,7 +1829,9 @@
         json
       );
 
+
       return;
+
     }
 
 
@@ -1828,128 +1854,102 @@
       );
 
       return;
+
     }
 
 
-    Ecwid.Cart.get(
-      function (currentCart) {
-
-        logRawCart(
-          'REAL ECWID CART BEFORE IMPORT',
-          currentCart
-        );
+    log(
+      'waiting for Ecwid native cart/create import'
+    );
 
 
-        var jobs = [];
+    var attempt = 0;
 
 
-        cartPayload.products.forEach(
-          function (
-            requestedProduct
-          ) {
+    function checkNativeCartImport() {
 
-            var requestedQty =
-              Number(
-                requestedProduct.quantity ||
-                1
-              );
+      attempt++;
 
 
-            var existingQty =
-              matchingQuantity(
-                currentCart,
-                requestedProduct
-              );
+      Ecwid.Cart.get(
+        function (cart) {
 
-
-            var missingQty =
-              requestedQty -
-              existingQty;
-
-
-            log(
-              'cart line comparison',
-              {
-                id:
-                  requestedProduct.id,
-
-                requested:
-                  requestedQty,
-
-                existing:
-                  existingQty,
-
-                missing:
-                  missingQty,
-
-                options:
-                  requestedProduct.options ||
-                  {},
-
-                normalizedRequestedOptions:
-                  normalizeOptionObject(
-                    requestedProduct.options ||
-                    {}
-                  )
-              }
-            );
-
-
-            if (
-              missingQty <= 0
-            ) {
-
-              return;
-            }
-
-
-            jobs.push({
-
-              id:
-                Number(
-                  requestedProduct.id
-                ),
-
-              quantity:
-                missingQty,
-
-              options:
-                requestedProduct.options ||
-                {}
-
-            });
-
-          }
-        );
-
-
-        if (
-          jobs.length === 0
-        ) {
-
-          log(
-            'real cart already contains all requested items'
+          logRawCart(
+            'NATIVE CART CHECK #' +
+            attempt,
+            cart
           );
 
 
-          verifyRequestedCart(
-            cartPayload.products,
+          var failures = [];
+
+
+          cartPayload.products.forEach(
             function (
-              verified
+              requested
             ) {
+
+              var expected =
+                Number(
+                  requested.quantity ||
+                  1
+                );
+
+
+              var actual =
+                matchingQuantity(
+                  cart,
+                  requested
+                );
+
+
+              log(
+                'native cart line comparison',
+                {
+
+                  id:
+                    requested.id,
+
+                  options:
+                    requested.options ||
+                    {},
+
+                  normalizedOptions:
+                    normalizeOptionObject(
+                      requested.options ||
+                      {}
+                    ),
+
+                  expected:
+                    expected,
+
+                  actual:
+                    actual
+
+                }
+              );
+
 
               if (
-                verified
+                actual < expected
               ) {
 
-                markProcessed(
-                  encodedPayload
-                );
+                failures.push({
 
+                  id:
+                    requested.id,
 
-                Ecwid.openPage(
-                  'cart'
-                );
+                  options:
+                    requested.options ||
+                    {},
+
+                  expected:
+                    expected,
+
+                  actual:
+                    actual
+
+                });
 
               }
 
@@ -1957,93 +1957,96 @@
           );
 
 
-          return;
-        }
-
-
-        log(
-          'products still needing import',
-          jobs
-        );
-
-
-        addProductsSequentially(
-          jobs,
-          0,
-          function (
-            success,
-            reason,
-            failedCart
+          if (
+            failures.length === 0
           ) {
 
-            if (!success) {
-
-              error(
-                'cart import did not complete successfully',
-                {
-                  reason:
-                    reason,
-
-                  cart:
-                    summarizeCart(
-                      failedCart
-                    )
-                }
-              );
-
-
-              return;
-            }
-
-
             log(
-              'all add jobs individually verified'
+              'NATIVE cart/create import verified'
             );
 
 
-            verifyRequestedCart(
-              cartPayload.products,
-              function (
-                verified,
-                finalCart
-              ) {
-
-                if (!verified) {
-
-                  error(
-                    'not opening cart because final verification failed',
-                    summarizeCart(
-                      finalCart
-                    )
-                  );
+            markProcessed(
+              encodedPayload
+            );
 
 
-                  return;
-                }
-
-
-                markProcessed(
-                  encodedPayload
-                );
-
-
-                log(
-                  'cart import finished successfully'
-                );
-
+            setTimeout(
+              function () {
 
                 Ecwid.openPage(
                   'cart'
                 );
 
+              },
+              300
+            );
+
+
+            return;
+
+          }
+
+
+          if (
+            attempt >=
+            VERIFY_MAX_ATTEMPTS
+          ) {
+
+            error(
+              'NATIVE cart/create import timeout',
+              {
+
+                attempts:
+                  attempt,
+
+                missing:
+                  failures,
+
+                cart:
+                  summarizeCart(
+                    cart
+                  )
+
               }
             );
 
-          }
-        );
 
-      }
+            /*
+             * Deliberately DO NOT call
+             * Ecwid.Cart.addProduct() here.
+             *
+             * Doing that would recreate the
+             * duplicate-cart race.
+             */
+
+            return;
+
+          }
+
+
+          setTimeout(
+            checkNativeCartImport,
+            VERIFY_INTERVAL_MS
+          );
+
+        }
+      );
+
+    }
+
+
+    /*
+     * Give Ecwid's own cart/create handler
+     * a short head start before inspecting
+     * the real cart.
+     */
+
+    setTimeout(
+      checkNativeCartImport,
+      500
     );
+
   }
 
 
@@ -2056,7 +2059,9 @@
   ) {
 
     if (!params) {
+
       return false;
+
     }
 
 
@@ -2069,7 +2074,9 @@
 
 
     if (!productId) {
+
       return false;
+
     }
 
 
@@ -2077,7 +2084,8 @@
       Number(
         params.get(
           'qty'
-        ) || 1
+        ) ||
+        1
       );
 
 
@@ -2090,7 +2098,9 @@
       );
 
 
-    if (rawOpts) {
+    if (
+      rawOpts
+    ) {
 
       try {
 
@@ -2171,6 +2181,7 @@
 
 
     return true;
+
   }
 
 
@@ -2199,6 +2210,7 @@
 
 
       return;
+
     }
 
 
@@ -2213,12 +2225,14 @@
     ) {
 
       return;
+
     }
 
 
     log(
       'no cart command found'
     );
+
   }
 
 
@@ -2241,6 +2255,7 @@
 
 
       return;
+
     }
 
 
@@ -2252,6 +2267,11 @@
         );
 
 
+        /*
+         * Ecwid needs time to begin handling
+         * its native cart/create route.
+         */
+
         setTimeout(
           runCartCommand,
           250
@@ -2259,6 +2279,7 @@
 
       }
     );
+
   }
 
 
@@ -2465,7 +2486,9 @@
 
 
         if (!header) {
+
           return;
+
         }
 
 
@@ -2510,7 +2533,9 @@
           );
 
 
-        if (yearMatch) {
+        if (
+          yearMatch
+        ) {
 
           year =
             parseInt(
@@ -2592,7 +2617,9 @@
 
 
             if (
-              isNaN(day)
+              isNaN(
+                day
+              )
             ) {
 
               return;
@@ -2614,7 +2641,9 @@
               );
 
 
-            if (isOffset) {
+            if (
+              isOffset
+            ) {
 
               var rowIndex =
                 Math.floor(
@@ -2685,7 +2714,9 @@
                 1
               ) +
               '-' +
-              pad(day);
+              pad(
+                day
+              );
 
 
             var weekday =
@@ -2772,7 +2803,9 @@
             }
 
 
-            if (block) {
+            if (
+              block
+            ) {
 
               cell.classList.add(
                 'dp__cell_disabled'
@@ -2872,7 +2905,9 @@
 
 
     Ecwid.OnPageLoaded.add(
-      function (page) {
+      function (
+        page
+      ) {
 
         if (
           page.type !==
@@ -2907,11 +2942,13 @@
         observer.observe(
           document.body,
           {
+
             childList:
               true,
 
             subtree:
               true
+
           }
         );
 
