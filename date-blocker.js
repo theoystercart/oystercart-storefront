@@ -1,33 +1,35 @@
 /* =========================================================
    OYSTER CART — ADDITIVE ECWID CART BRIDGE
-   VERSION 5
+   VERSION 6
 
-   Custom Wix storefront -> existing real Ecwid cart.
+   Receives:
 
-   IMPORTANT:
-   We DO NOT use Ecwid native cart/create.
+       #!/ocCartAdd=<payload>
 
-   Wix sends:
-       ?ocCartAdd=<payload>
+   It does NOT use Ecwid native cart/create.
 
-   Bridge:
-   1. Decodes desired Wix cart lines.
-   2. Reads existing Ecwid cart.
-   3. Compares product + options.
-   4. Adds ONLY missing quantity.
-   5. Verifies each addition.
-   6. Opens cart when complete.
+   Flow:
+   1. Detect ocCartAdd from Ecwid/Wix route.
+   2. Decode payload.
+   3. Read current real Ecwid cart.
+   4. Add each incoming configured product.
+   5. Preserve existing cart lines.
+   6. Verify each addition.
+   7. Open real Ecwid cart.
 ========================================================= */
 
 (function () {
 
   'use strict';
 
+
   var PREFIX =
-    '[OysterCart Additive Bridge]';
+    '[OysterCart Additive Bridge V6]';
+
 
   var VERIFY_INTERVAL_MS =
     500;
+
 
   var VERIFY_MAX_ATTEMPTS =
     20;
@@ -42,10 +44,12 @@
         )
       );
 
+
     console.log.apply(
       console,
       args
     );
+
   }
 
 
@@ -58,10 +62,12 @@
         )
       );
 
+
     console.error.apply(
       console,
       args
     );
+
   }
 
 
@@ -80,6 +86,7 @@
       return String(value);
 
     }
+
   }
 
 
@@ -96,10 +103,15 @@
           base64
         );
 
+
       var binary =
-        atob(decoded);
+        atob(
+          decoded
+        );
+
 
       var bytes = [];
+
 
       for (
         var i = 0;
@@ -116,11 +128,14 @@
               .toString(16)
           ).slice(-2)
         );
+
       }
+
 
       return decodeURIComponent(
         bytes.join('')
       );
+
 
     } catch (e) {
 
@@ -129,8 +144,11 @@
         e
       );
 
+
       return null;
+
     }
+
   }
 
 
@@ -142,10 +160,20 @@
 
     var sources = [];
 
+
     try {
 
       sources.push(
         window.location.href
+      );
+
+    } catch (e) {}
+
+
+    try {
+
+      sources.push(
+        window.location.hash
       );
 
     } catch (e) {}
@@ -162,6 +190,24 @@
         sources.push(
           window.ec.config.currentRoute
         );
+
+      }
+
+    } catch (e) {}
+
+
+    try {
+
+      if (
+        window.ec &&
+        window.ec.config &&
+        window.ec.config.ecwidInitialState
+      ) {
+
+        sources.push(
+          window.ec.config.ecwidInitialState
+        );
+
       }
 
     } catch (e) {}
@@ -176,6 +222,12 @@
     } catch (e) {}
 
 
+    log(
+      'Scanning route sources:',
+      sources
+    );
+
+
     for (
       var i = 0;
       i < sources.length;
@@ -183,16 +235,31 @@
     ) {
 
       var source =
-        sources[i];
+        String(
+          sources[i] || ''
+        );
+
 
       if (!source) {
         continue;
       }
 
+
+      /*
+       * Intentionally broad.
+       *
+       * Works for:
+       *
+       * ?ocCartAdd=
+       * #!/ocCartAdd=
+       * currentRoute containing ocCartAdd=
+       */
+
       var match =
         source.match(
-          /[?&]ocCartAdd=([^&#]+)/
+          /ocCartAdd=([^&#?]+)/
         );
+
 
       if (
         match &&
@@ -200,14 +267,20 @@
       ) {
 
         log(
-          'ocCartAdd payload found'
+          'ocCartAdd payload FOUND in:',
+          source
         );
 
+
         return match[1];
+
       }
+
     }
 
+
     return null;
+
   }
 
 
@@ -225,6 +298,7 @@
     )
       .trim()
       .toLowerCase();
+
   }
 
 
@@ -236,6 +310,7 @@
     ) {
 
       return '';
+
     }
 
 
@@ -247,13 +322,15 @@
         .map(function (item) {
 
           if (
-            typeof item !== 'object' ||
+            typeof item !==
+              'object' ||
             item === null
           ) {
 
             return String(item)
               .trim()
               .toLowerCase();
+
           }
 
 
@@ -274,42 +351,52 @@
         })
         .sort()
         .join('|');
+
     }
 
 
     if (
-      typeof value === 'object'
+      typeof value ===
+      'object'
     ) {
 
       if (
-        value.value !== undefined
+        value.value !==
+        undefined
       ) {
 
         return normalizeValue(
           value.value
         );
+
       }
 
 
       if (
-        value.text !== undefined
+        value.text !==
+        undefined
       ) {
 
         return normalizeValue(
           value.text
         );
+
       }
 
 
-      return safeStringify(value)
+      return safeStringify(
+        value
+      )
         .trim()
         .toLowerCase();
+
     }
 
 
     return String(value)
       .trim()
       .toLowerCase();
+
   }
 
 
@@ -326,6 +413,7 @@
     ) {
 
       return normalized;
+
     }
 
 
@@ -338,10 +426,12 @@
 
           if (
             !entry ||
-            typeof entry !== 'object'
+            typeof entry !==
+              'object'
           ) {
 
             return;
+
           }
 
 
@@ -376,19 +466,28 @@
           ) {
 
             normalized[
-              normalizeName(name)
+              normalizeName(
+                name
+              )
             ] =
-              normalizeValue(value);
+              normalizeValue(
+                value
+              );
+
           }
+
         }
       );
 
+
       return normalized;
+
     }
 
 
     if (
-      typeof options === 'object'
+      typeof options ===
+      'object'
     ) {
 
       Object.keys(options)
@@ -400,9 +499,12 @@
 
 
             if (
-              /^\d+$/.test(name) &&
+              /^\d+$/.test(
+                name
+              ) &&
               value &&
-              typeof value === 'object'
+              typeof value ===
+                'object'
             ) {
 
               var nested =
@@ -411,9 +513,13 @@
                 );
 
 
-              Object.keys(nested)
+              Object.keys(
+                nested
+              )
                 .forEach(
-                  function (nestedName) {
+                  function (
+                    nestedName
+                  ) {
 
                     normalized[
                       nestedName
@@ -421,25 +527,36 @@
                       nested[
                         nestedName
                       ];
+
                   }
                 );
 
+
               return;
+
             }
 
 
             normalized[
-              normalizeName(name)
+              normalizeName(
+                name
+              )
             ] =
-              normalizeValue(value);
+              normalizeValue(
+                value
+              );
+
           }
         );
 
+
       return normalized;
+
     }
 
 
     return normalized;
+
   }
 
 
@@ -453,10 +570,12 @@
         expected
       );
 
+
     var b =
       normalizeOptionObject(
         actual
       );
+
 
     var names =
       Object.keys(a);
@@ -481,6 +600,7 @@
       ) {
 
         return false;
+
       }
 
 
@@ -490,11 +610,14 @@
       ) {
 
         return false;
+
       }
+
     }
 
 
     return true;
+
   }
 
 
@@ -502,7 +625,9 @@
      CART HELPERS
   ======================================================= */
 
-  function getItemProductId(item) {
+  function getItemProductId(
+    item
+  ) {
 
     if (!item) {
       return null;
@@ -511,40 +636,49 @@
 
     if (
       item.product &&
-      item.product.id !== undefined
+      item.product.id !==
+        undefined
     ) {
 
       return Number(
         item.product.id
       );
+
     }
 
 
     if (
-      item.productId !== undefined
+      item.productId !==
+      undefined
     ) {
 
       return Number(
         item.productId
       );
+
     }
 
 
     if (
-      item.id !== undefined
+      item.id !==
+      undefined
     ) {
 
       return Number(
         item.id
       );
+
     }
 
 
     return null;
+
   }
 
 
-  function getItemQuantity(item) {
+  function getItemQuantity(
+    item
+  ) {
 
     if (!item) {
       return 0;
@@ -556,6 +690,7 @@
       item.count ||
       0
     );
+
   }
 
 
@@ -572,43 +707,51 @@
 
 
     if (
-      item.options !== undefined
+      item.options !==
+      undefined
     ) {
 
       candidates.push(
         item.options
       );
+
     }
 
 
     if (
-      item.selectedOptions !== undefined
+      item.selectedOptions !==
+      undefined
     ) {
 
       candidates.push(
         item.selectedOptions
       );
+
     }
 
 
     if (
-      item.productOptions !== undefined
+      item.productOptions !==
+      undefined
     ) {
 
       candidates.push(
         item.productOptions
       );
+
     }
 
 
     if (
       item.product &&
-      item.product.options !== undefined
+      item.product.options !==
+        undefined
     ) {
 
       candidates.push(
         item.product.options
       );
+
     }
 
 
@@ -621,6 +764,7 @@
       candidates.push(
         item.product.selectedOptions
       );
+
     }
 
 
@@ -633,10 +777,12 @@
       candidates.push(
         item.product.productOptions
       );
+
     }
 
 
     return candidates;
+
   }
 
 
@@ -659,30 +805,36 @@
 
       if (
         optionsMatch(
-          requestedOptions || {},
+          requestedOptions ||
+            {},
           candidates[i]
         )
       ) {
 
         return true;
+
       }
+
     }
 
 
     if (
       Object.keys(
         normalizeOptionObject(
-          requestedOptions || {}
+          requestedOptions ||
+            {}
         )
       ).length === 0 &&
       candidates.length === 0
     ) {
 
       return true;
+
     }
 
 
     return false;
+
   }
 
 
@@ -693,10 +845,13 @@
 
     if (
       !cart ||
-      !Array.isArray(cart.items)
+      !Array.isArray(
+        cart.items
+      )
     ) {
 
       return 0;
+
     }
 
 
@@ -707,37 +862,48 @@
       function (item) {
 
         if (
-          getItemProductId(item) !==
-          Number(requested.id)
+          getItemProductId(
+            item
+          ) !==
+          Number(
+            requested.id
+          )
         ) {
 
           return;
+
         }
 
 
         if (
           !itemOptionsMatch(
             item,
-            requested.options || {}
+            requested.options ||
+              {}
           )
         ) {
 
           return;
+
         }
 
 
         total +=
-          getItemQuantity(item);
+          getItemQuantity(
+            item
+          );
+
       }
     );
 
 
     return total;
+
   }
 
 
   /* =======================================================
-     VERIFY ONE ADDITION
+     VERIFY ADDITION
   ======================================================= */
 
   function waitForQuantity(
@@ -762,13 +928,15 @@
 
 
         log(
-          'verify #' + attempt,
+          'verify #' +
+            attempt,
           {
             id:
               job.id,
 
             options:
-              job.options || {},
+              job.options ||
+              {},
 
             target:
               targetQuantity,
@@ -780,7 +948,8 @@
 
 
         if (
-          actual >= targetQuantity
+          actual >=
+          targetQuantity
         ) {
 
           callback(
@@ -788,7 +957,9 @@
             cart
           );
 
+
           return;
+
         }
 
 
@@ -820,7 +991,9 @@
             cart
           );
 
+
           return;
+
         }
 
 
@@ -837,13 +1010,15 @@
           },
           VERIFY_INTERVAL_MS
         );
+
       }
     );
+
   }
 
 
   /* =======================================================
-     ADD ONE PAYLOAD LINE
+     ADD ONE INCOMING LINE
   ======================================================= */
 
   function addPayloadLine(
@@ -852,7 +1027,9 @@
   ) {
 
     Ecwid.Cart.get(
-      function (beforeCart) {
+      function (
+        beforeCart
+      ) {
 
         var existing =
           matchingQuantity(
@@ -863,7 +1040,8 @@
 
         var quantityToAdd =
           Number(
-            job.quantity || 1
+            job.quantity ||
+            1
           );
 
 
@@ -873,7 +1051,7 @@
 
 
         log(
-          'adding line',
+          'Adding configured line:',
           {
             id:
               job.id,
@@ -888,7 +1066,8 @@
               target,
 
             options:
-              job.options || {}
+              job.options ||
+              {}
           }
         );
 
@@ -896,13 +1075,16 @@
         Ecwid.Cart.addProduct({
 
           id:
-            Number(job.id),
+            Number(
+              job.id
+            ),
 
           quantity:
             quantityToAdd,
 
           options:
-            job.options || {},
+            job.options ||
+            {},
 
           callback:
             function (
@@ -913,21 +1095,25 @@
             ) {
 
               log(
-                'addProduct callback',
+                'addProduct callback:',
                 {
                   success:
                     success,
 
                   product:
-                    product || null,
+                    product ||
+                    null,
 
                   error:
-                    cartError || null
+                    cartError ||
+                    null
                 }
               );
 
 
-              if (!success) {
+              if (
+                !success
+              ) {
 
                 error(
                   'Ecwid addProduct failed',
@@ -935,9 +1121,12 @@
                   cartError
                 );
 
+
                 done(false);
 
+
                 return;
+
               }
 
 
@@ -955,21 +1144,26 @@
                       done(
                         verified
                       );
+
                     }
                   );
 
                 },
                 VERIFY_INTERVAL_MS
               );
+
             }
+
         });
+
       }
     );
+
   }
 
 
   /* =======================================================
-     PROCESS PAYLOAD LINES SEQUENTIALLY
+     PROCESS LINES SEQUENTIALLY
   ======================================================= */
 
   function processLines(
@@ -982,7 +1176,8 @@
 
 
     if (
-      index >= products.length
+      index >=
+      products.length
     ) {
 
       log(
@@ -1001,7 +1196,9 @@
         300
       );
 
+
       return;
+
     }
 
 
@@ -1011,16 +1208,22 @@
 
     addPayloadLine(
       job,
-      function (success) {
+      function (
+        success
+      ) {
 
-        if (!success) {
+        if (
+          !success
+        ) {
 
           error(
             'handoff stopped — line could not be verified',
             job
           );
 
+
           return;
+
         }
 
 
@@ -1028,8 +1231,10 @@
           products,
           index + 1
         );
+
       }
     );
+
   }
 
 
@@ -1041,8 +1246,12 @@
     encodedPayload
   ) {
 
-    if (!encodedPayload) {
+    if (
+      !encodedPayload
+    ) {
+
       return;
+
     }
 
 
@@ -1058,7 +1267,9 @@
         'payload could not be decoded'
       );
 
+
       return;
+
     }
 
 
@@ -1068,7 +1279,10 @@
     try {
 
       payload =
-        JSON.parse(json);
+        JSON.parse(
+          json
+        );
+
 
     } catch (e) {
 
@@ -1078,12 +1292,14 @@
         json
       );
 
+
       return;
+
     }
 
 
     log(
-      'decoded additive payload',
+      'Decoded additive payload:',
       payload
     );
 
@@ -1093,14 +1309,17 @@
       !Array.isArray(
         payload.products
       ) ||
-      payload.products.length === 0
+      payload.products.length ===
+        0
     ) {
 
       error(
         'payload contains no products'
       );
 
+
       return;
+
     }
 
 
@@ -1108,11 +1327,12 @@
       payload.products,
       0
     );
+
   }
 
 
   /* =======================================================
-     RUN
+     RUN COMMAND
   ======================================================= */
 
   function runCartCommand() {
@@ -1124,16 +1344,19 @@
     if (!payload) {
 
       log(
-        'no ocCartAdd command found'
+        'NO ocCartAdd command found'
       );
 
+
       return;
+
     }
 
 
     processAddCommand(
       payload
     );
+
   }
 
 
@@ -1154,7 +1377,9 @@
         500
       );
 
+
       return;
+
     }
 
 
@@ -1168,10 +1393,12 @@
 
         setTimeout(
           runCartCommand,
-          250
+          300
         );
+
       }
     );
+
   }
 
 
@@ -1184,10 +1411,11 @@
 
 })();
 
+
+
 /* =========================================================
    OYSTER CART — DATE BLOCKER
    Mussel Madness Ticket
-   =========================================================
 
    v5
    Adds ALLOWED_DATES to override weekday blocks.
@@ -1497,7 +1725,8 @@
             if (
               cell.getAttribute(
                 'data-blocked'
-              ) === 'true'
+              ) ===
+              'true'
             ) {
 
               return;
@@ -1513,9 +1742,7 @@
 
 
             if (
-              isNaN(
-                day
-              )
+              isNaN(day)
             ) {
 
               return;
@@ -1543,21 +1770,26 @@
 
               var rowIndex =
                 Math.floor(
-                  index / 7
+                  index /
+                  7
                 );
 
 
               if (
-                rowIndex === 0 &&
-                day > 20
+                rowIndex ===
+                  0 &&
+                day >
+                  20
               ) {
 
                 cellMonth =
-                  month - 1;
+                  month -
+                  1;
 
 
                 if (
-                  cellMonth < 0
+                  cellMonth <
+                  0
                 ) {
 
                   cellMonth =
@@ -1565,7 +1797,8 @@
 
 
                   cellYear =
-                    year - 1;
+                    year -
+                    1;
 
                 }
 
@@ -1573,11 +1806,13 @@
               } else {
 
                 cellMonth =
-                  month + 1;
+                  month +
+                  1;
 
 
                 if (
-                  cellMonth > 11
+                  cellMonth >
+                  11
                 ) {
 
                   cellMonth =
@@ -1585,7 +1820,8 @@
 
 
                   cellYear =
-                    year + 1;
+                    year +
+                    1;
 
                 }
 
@@ -1607,7 +1843,7 @@
               '-' +
               pad(
                 cellMonth +
-                1
+                  1
               ) +
               '-' +
               pad(
@@ -1650,7 +1886,8 @@
               BLOCKED_WEEKDAYS
                 .indexOf(
                   weekday
-                ) !== -1
+                ) !==
+              -1
             ) {
 
               block =
@@ -1663,7 +1900,8 @@
               BLOCKED_DATES
                 .indexOf(
                   dateString
-                ) !== -1
+                ) !==
+              -1
             ) {
 
               block =
@@ -1676,7 +1914,8 @@
               ALLOWED_DATES
                 .indexOf(
                   dateString
-                ) !== -1 &&
+                ) !==
+                -1 &&
 
               cellDate >=
                 todaySG &&
@@ -1684,7 +1923,8 @@
               BLOCKED_DATES
                 .indexOf(
                   dateString
-                ) === -1 &&
+                ) ===
+                -1 &&
 
               !(
                 dateString ===
