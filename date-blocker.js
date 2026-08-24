@@ -1,21 +1,20 @@
 /* =========================================================
-   OYSTER CART — ADDITIVE ECWID CART BRIDGE
-   VERSION 6
+   OYSTER CART — ECWID ADDITIVE CART BRIDGE
+   VERSION 7
 
-   Receives:
+   Wix parent page:
+       #onlineStore1.postMessage(...)
 
-       #!/ocCartAdd=<payload>
+   Ecwid iframe:
+       window message receiver
 
-   It does NOT use Ecwid native cart/create.
-
-   Flow:
-   1. Detect ocCartAdd from Ecwid/Wix route.
-   2. Decode payload.
-   3. Read current real Ecwid cart.
-   4. Add each incoming configured product.
-   5. Preserve existing cart lines.
-   6. Verify each addition.
-   7. Open real Ecwid cart.
+   PURPOSE:
+   - Preserve existing Ecwid cart.
+   - Add only NEW Wix products.
+   - Same configuration can merge quantity naturally.
+   - Different configurations remain separate.
+   - Prevent duplicate handoff replay.
+   - Protect against Back / Forward / refresh.
 ========================================================= */
 
 (function () {
@@ -24,16 +23,37 @@
 
 
   var PREFIX =
-    '[OysterCart Additive Bridge V6]';
+    '[OysterCart Bridge V7]';
 
 
-  var VERIFY_INTERVAL_MS =
-    500;
+  var API_READY =
+    false;
 
 
-  var VERIFY_MAX_ATTEMPTS =
-    20;
+  var ACTIVE_HANDOFF_ID =
+    null;
 
+
+  var READY_TIMER =
+    null;
+
+
+  var READY_COUNT =
+    0;
+
+
+  var MAX_READY_MESSAGES =
+    30;
+
+
+  var STORAGE_KEY =
+    'oysterCart_handoff_state_v7';
+
+
+
+  /* =======================================================
+     LOGGING
+  ======================================================= */
 
   function log() {
 
@@ -71,1090 +91,492 @@
   }
 
 
-  function safeStringify(value) {
+
+  /* =======================================================
+     SEND MESSAGE TO WIX PARENT
+  ======================================================= */
+
+  function sendToWix(message) {
 
     try {
 
-      return JSON.stringify(
-        value,
-        null,
-        2
+      window.parent.postMessage(
+        message,
+        '*'
       );
 
-    } catch (e) {
 
-      return String(value);
+      log(
+        'Sent to Wix:',
+        message
+      );
+
+
+    } catch (err) {
+
+      error(
+        'Could not message Wix parent:',
+        err
+      );
 
     }
 
   }
 
 
+
   /* =======================================================
-     UTF-8 BASE64
+     READY HANDSHAKE
   ======================================================= */
 
-  function decodeBase64Utf8(base64) {
+  function announceReady() {
+
+    if (
+      !API_READY
+    ) {
+
+      return;
+
+    }
+
+
+    sendToWix({
+
+      type:
+        'OYSTER_CART_BRIDGE_READY'
+
+    });
+
+
+    READY_COUNT++;
+
+
+    if (
+      READY_COUNT >=
+      MAX_READY_MESSAGES
+    ) {
+
+      stopReadyAnnouncements();
+
+    }
+
+  }
+
+
+  function startReadyAnnouncements() {
+
+    stopReadyAnnouncements();
+
+
+    READY_COUNT =
+      0;
+
+
+    /*
+     * Send immediately.
+     */
+
+    announceReady();
+
+
+    /*
+     * Repeat briefly.
+     *
+     * If Wix page wasn't listening on the first
+     * millisecond, the next READY message catches it.
+     */
+
+    READY_TIMER =
+      setInterval(
+        announceReady,
+        300
+      );
+
+  }
+
+
+  function stopReadyAnnouncements() {
+
+    if (
+      READY_TIMER
+    ) {
+
+      clearInterval(
+        READY_TIMER
+      );
+
+
+      READY_TIMER =
+        null;
+
+    }
+
+  }
+
+
+
+  /* =======================================================
+     HANDOFF STATE STORAGE
+  ======================================================= */
+
+  function readState() {
 
     try {
 
-      var decoded =
-        decodeURIComponent(
-          base64
+      var raw =
+        localStorage.getItem(
+          STORAGE_KEY
         );
 
 
-      var binary =
-        atob(
-          decoded
-        );
+      if (!raw) {
 
-
-      var bytes = [];
-
-
-      for (
-        var i = 0;
-        i < binary.length;
-        i++
-      ) {
-
-        bytes.push(
-          '%' +
-          (
-            '00' +
-            binary
-              .charCodeAt(i)
-              .toString(16)
-          ).slice(-2)
-        );
+        return {};
 
       }
 
 
-      return decodeURIComponent(
-        bytes.join('')
+      var parsed =
+        JSON.parse(
+          raw
+        );
+
+
+      if (
+        !parsed ||
+        typeof parsed !==
+          'object'
+      ) {
+
+        return {};
+
+      }
+
+
+      return parsed;
+
+
+    } catch (err) {
+
+      return {};
+
+    }
+
+  }
+
+
+  function writeState(state) {
+
+    try {
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(
+          state
+        )
       );
 
 
-    } catch (e) {
+    } catch (err) {
 
       error(
-        'Base64 decode failed',
-        e
+        'Could not persist handoff state:',
+        err
       );
 
+    }
+
+  }
+
+
+  function getHandoffState(
+    handoffId
+  ) {
+
+    var state =
+      readState();
+
+
+    return (
+      state[
+        handoffId
+      ] ||
+      null
+    );
+
+  }
+
+
+  function saveHandoffState(
+    handoffId,
+    handoffState
+  ) {
+
+    var state =
+      readState();
+
+
+    state[
+      handoffId
+    ] =
+      handoffState;
+
+
+    /*
+     * Keep storage bounded.
+     */
+
+    var ids =
+      Object.keys(
+        state
+      );
+
+
+    if (
+      ids.length >
+      40
+    ) {
+
+      ids
+        .sort(
+          function (
+            a,
+            b
+          ) {
+
+            return (
+              Number(
+                state[a].updatedAt ||
+                0
+              ) -
+              Number(
+                state[b].updatedAt ||
+                0
+              )
+            );
+
+          }
+        )
+        .slice(
+          0,
+          ids.length -
+            40
+        )
+        .forEach(
+          function (id) {
+
+            delete state[id];
+
+          }
+        );
+
+    }
+
+
+    writeState(
+      state
+    );
+
+  }
+
+
+
+  /* =======================================================
+     VALIDATE PRODUCT
+  ======================================================= */
+
+  function cleanProduct(
+    product
+  ) {
+
+    if (
+      !product ||
+      !product.id
+    ) {
 
       return null;
 
     }
 
-  }
 
+    var clean = {
 
-  /* =======================================================
-     FIND OUR COMMAND
-  ======================================================= */
+      id:
+        Number(
+          product.id
+        ),
 
-  function findAddPayload() {
+      quantity:
+        Number(
+          product.quantity ||
+          1
+        )
 
-    var sources = [];
-
-
-    try {
-
-      sources.push(
-        window.location.href
-      );
-
-    } catch (e) {}
-
-
-    try {
-
-      sources.push(
-        window.location.hash
-      );
-
-    } catch (e) {}
-
-
-    try {
-
-      if (
-        window.ec &&
-        window.ec.config &&
-        window.ec.config.currentRoute
-      ) {
-
-        sources.push(
-          window.ec.config.currentRoute
-        );
-
-      }
-
-    } catch (e) {}
-
-
-    try {
-
-      if (
-        window.ec &&
-        window.ec.config &&
-        window.ec.config.ecwidInitialState
-      ) {
-
-        sources.push(
-          window.ec.config.ecwidInitialState
-        );
-
-      }
-
-    } catch (e) {}
-
-
-    try {
-
-      sources.push(
-        document.referrer
-      );
-
-    } catch (e) {}
-
-
-    log(
-      'Scanning route sources:',
-      sources
-    );
-
-
-    for (
-      var i = 0;
-      i < sources.length;
-      i++
-    ) {
-
-      var source =
-        String(
-          sources[i] || ''
-        );
-
-
-      if (!source) {
-        continue;
-      }
-
-
-      /*
-       * Intentionally broad.
-       *
-       * Works for:
-       *
-       * ?ocCartAdd=
-       * #!/ocCartAdd=
-       * currentRoute containing ocCartAdd=
-       */
-
-      var match =
-        source.match(
-          /ocCartAdd=([^&#?]+)/
-        );
-
-
-      if (
-        match &&
-        match[1]
-      ) {
-
-        log(
-          'ocCartAdd payload FOUND in:',
-          source
-        );
-
-
-        return match[1];
-
-      }
-
-    }
-
-
-    return null;
-
-  }
-
-
-  /* =======================================================
-     NORMALIZE OPTIONS
-  ======================================================= */
-
-  function normalizeName(value) {
-
-    return String(
-      value === undefined ||
-      value === null
-        ? ''
-        : value
-    )
-      .trim()
-      .toLowerCase();
-
-  }
-
-
-  function normalizeValue(value) {
-
-    if (
-      value === undefined ||
-      value === null
-    ) {
-
-      return '';
-
-    }
+    };
 
 
     if (
-      Array.isArray(value)
-    ) {
-
-      return value
-        .map(function (item) {
-
-          if (
-            typeof item !==
-              'object' ||
-            item === null
-          ) {
-
-            return String(item)
-              .trim()
-              .toLowerCase();
-
-          }
-
-
-          var nested =
-            item.value !== undefined
-              ? item.value
-              : item.text !== undefined
-                ? item.text
-                : item.name !== undefined
-                  ? item.name
-                  : safeStringify(item);
-
-
-          return String(nested)
-            .trim()
-            .toLowerCase();
-
-        })
-        .sort()
-        .join('|');
-
-    }
-
-
-    if (
-      typeof value ===
-      'object'
-    ) {
-
-      if (
-        value.value !==
-        undefined
-      ) {
-
-        return normalizeValue(
-          value.value
-        );
-
-      }
-
-
-      if (
-        value.text !==
-        undefined
-      ) {
-
-        return normalizeValue(
-          value.text
-        );
-
-      }
-
-
-      return safeStringify(
-        value
+      !clean.id ||
+      isNaN(
+        clean.id
       )
-        .trim()
-        .toLowerCase();
+    ) {
+
+      return null;
 
     }
 
 
-    return String(value)
-      .trim()
-      .toLowerCase();
+    if (
+      !clean.quantity ||
+      clean.quantity <
+        1
+    ) {
+
+      clean.quantity =
+        1;
+
+    }
+
+
+    if (
+      product.options &&
+      typeof product.options ===
+        'object'
+    ) {
+
+      clean.options =
+        product.options;
+
+    }
+
+
+    return clean;
 
   }
 
 
-  function normalizeOptionObject(
-    options
+
+  /* =======================================================
+     ADD ONE PRODUCT
+  ======================================================= */
+
+  function addOneProduct(
+    product
   ) {
 
-    var normalized = {};
+    return new Promise(
+      function (
+        resolve,
+        reject
+      ) {
+
+        var clean =
+          cleanProduct(
+            product
+          );
 
 
-    if (
-      options === undefined ||
-      options === null
-    ) {
+        if (!clean) {
 
-      return normalized;
-
-    }
-
-
-    if (
-      Array.isArray(options)
-    ) {
-
-      options.forEach(
-        function (entry) {
-
-          if (
-            !entry ||
-            typeof entry !==
-              'object'
-          ) {
-
-            return;
-
-          }
+          reject(
+            new Error(
+              'Invalid product payload'
+            )
+          );
 
 
-          var name =
-            entry.name !== undefined
-              ? entry.name
-              : entry.optionName !== undefined
-                ? entry.optionName
-                : entry.title !== undefined
-                  ? entry.title
-                  : entry.label !== undefined
-                    ? entry.label
-                    : null;
-
-
-          var value =
-            entry.value !== undefined
-              ? entry.value
-              : entry.optionValue !== undefined
-                ? entry.optionValue
-                : entry.text !== undefined
-                  ? entry.text
-                  : entry.selectedValue !== undefined
-                    ? entry.selectedValue
-                    : entry.values !== undefined
-                      ? entry.values
-                      : null;
-
-
-          if (
-            name !== null
-          ) {
-
-            normalized[
-              normalizeName(
-                name
-              )
-            ] =
-              normalizeValue(
-                value
-              );
-
-          }
+          return;
 
         }
-      );
 
 
-      return normalized;
-
-    }
-
-
-    if (
-      typeof options ===
-      'object'
-    ) {
-
-      Object.keys(options)
-        .forEach(
-          function (name) {
-
-            var value =
-              options[name];
+        log(
+          'Adding product:',
+          clean
+        );
 
 
-            if (
-              /^\d+$/.test(
-                name
-              ) &&
-              value &&
-              typeof value ===
-                'object'
-            ) {
+        try {
 
-              var nested =
-                normalizeOptionObject(
-                  [value]
-                );
+          Ecwid.Cart.addProduct({
 
+            id:
+              clean.id,
 
-              Object.keys(
-                nested
-              )
-                .forEach(
-                  function (
-                    nestedName
-                  ) {
+            quantity:
+              clean.quantity,
 
-                    normalized[
-                      nestedName
-                    ] =
-                      nested[
-                        nestedName
-                      ];
+            options:
+              clean.options ||
+              {},
 
+            callback:
+              function (
+                success,
+                addedProduct,
+                cart,
+                cartError
+              ) {
+
+                log(
+                  'addProduct callback:',
+                  {
+                    success:
+                      success,
+
+                    product:
+                      addedProduct ||
+                      null,
+
+                    error:
+                      cartError ||
+                      null
                   }
                 );
 
 
-              return;
+                if (
+                  success
+                ) {
 
-            }
+                  resolve({
+                    product:
+                      clean,
 
+                    cart:
+                      cart ||
+                      null
+                  });
 
-            normalized[
-              normalizeName(
-                name
-              )
-            ] =
-              normalizeValue(
-                value
-              );
 
-          }
-        );
+                  return;
 
-
-      return normalized;
-
-    }
-
-
-    return normalized;
-
-  }
-
-
-  function optionsMatch(
-    expected,
-    actual
-  ) {
-
-    var a =
-      normalizeOptionObject(
-        expected
-      );
-
-
-    var b =
-      normalizeOptionObject(
-        actual
-      );
-
-
-    var names =
-      Object.keys(a);
-
-
-    for (
-      var i = 0;
-      i < names.length;
-      i++
-    ) {
-
-      var name =
-        names[i];
-
-
-      if (
-        !Object.prototype
-          .hasOwnProperty.call(
-            b,
-            name
-          )
-      ) {
-
-        return false;
-
-      }
-
-
-      if (
-        a[name] !==
-        b[name]
-      ) {
-
-        return false;
-
-      }
-
-    }
-
-
-    return true;
-
-  }
-
-
-  /* =======================================================
-     CART HELPERS
-  ======================================================= */
-
-  function getItemProductId(
-    item
-  ) {
-
-    if (!item) {
-      return null;
-    }
-
-
-    if (
-      item.product &&
-      item.product.id !==
-        undefined
-    ) {
-
-      return Number(
-        item.product.id
-      );
-
-    }
-
-
-    if (
-      item.productId !==
-      undefined
-    ) {
-
-      return Number(
-        item.productId
-      );
-
-    }
-
-
-    if (
-      item.id !==
-      undefined
-    ) {
-
-      return Number(
-        item.id
-      );
-
-    }
-
-
-    return null;
-
-  }
-
-
-  function getItemQuantity(
-    item
-  ) {
-
-    if (!item) {
-      return 0;
-    }
-
-
-    return Number(
-      item.quantity ||
-      item.count ||
-      0
-    );
-
-  }
-
-
-  function getItemOptionCandidates(
-    item
-  ) {
-
-    var candidates = [];
-
-
-    if (!item) {
-      return candidates;
-    }
-
-
-    if (
-      item.options !==
-      undefined
-    ) {
-
-      candidates.push(
-        item.options
-      );
-
-    }
-
-
-    if (
-      item.selectedOptions !==
-      undefined
-    ) {
-
-      candidates.push(
-        item.selectedOptions
-      );
-
-    }
-
-
-    if (
-      item.productOptions !==
-      undefined
-    ) {
-
-      candidates.push(
-        item.productOptions
-      );
-
-    }
-
-
-    if (
-      item.product &&
-      item.product.options !==
-        undefined
-    ) {
-
-      candidates.push(
-        item.product.options
-      );
-
-    }
-
-
-    if (
-      item.product &&
-      item.product.selectedOptions !==
-        undefined
-    ) {
-
-      candidates.push(
-        item.product.selectedOptions
-      );
-
-    }
-
-
-    if (
-      item.product &&
-      item.product.productOptions !==
-        undefined
-    ) {
-
-      candidates.push(
-        item.product.productOptions
-      );
-
-    }
-
-
-    return candidates;
-
-  }
-
-
-  function itemOptionsMatch(
-    item,
-    requestedOptions
-  ) {
-
-    var candidates =
-      getItemOptionCandidates(
-        item
-      );
-
-
-    for (
-      var i = 0;
-      i < candidates.length;
-      i++
-    ) {
-
-      if (
-        optionsMatch(
-          requestedOptions ||
-            {},
-          candidates[i]
-        )
-      ) {
-
-        return true;
-
-      }
-
-    }
-
-
-    if (
-      Object.keys(
-        normalizeOptionObject(
-          requestedOptions ||
-            {}
-        )
-      ).length === 0 &&
-      candidates.length === 0
-    ) {
-
-      return true;
-
-    }
-
-
-    return false;
-
-  }
-
-
-  function matchingQuantity(
-    cart,
-    requested
-  ) {
-
-    if (
-      !cart ||
-      !Array.isArray(
-        cart.items
-      )
-    ) {
-
-      return 0;
-
-    }
-
-
-    var total = 0;
-
-
-    cart.items.forEach(
-      function (item) {
-
-        if (
-          getItemProductId(
-            item
-          ) !==
-          Number(
-            requested.id
-          )
-        ) {
-
-          return;
-
-        }
-
-
-        if (
-          !itemOptionsMatch(
-            item,
-            requested.options ||
-              {}
-          )
-        ) {
-
-          return;
-
-        }
-
-
-        total +=
-          getItemQuantity(
-            item
-          );
-
-      }
-    );
-
-
-    return total;
-
-  }
-
-
-  /* =======================================================
-     VERIFY ADDITION
-  ======================================================= */
-
-  function waitForQuantity(
-    job,
-    targetQuantity,
-    attempt,
-    callback
-  ) {
-
-    attempt =
-      attempt || 1;
-
-
-    Ecwid.Cart.get(
-      function (cart) {
-
-        var actual =
-          matchingQuantity(
-            cart,
-            job
-          );
-
-
-        log(
-          'verify #' +
-            attempt,
-          {
-            id:
-              job.id,
-
-            options:
-              job.options ||
-              {},
-
-            target:
-              targetQuantity,
-
-            actual:
-              actual
-          }
-        );
-
-
-        if (
-          actual >=
-          targetQuantity
-        ) {
-
-          callback(
-            true,
-            cart
-          );
-
-
-          return;
-
-        }
-
-
-        if (
-          attempt >=
-          VERIFY_MAX_ATTEMPTS
-        ) {
-
-          error(
-            'verification timeout',
-            {
-              job:
-                job,
-
-              target:
-                targetQuantity,
-
-              actual:
-                actual,
-
-              cart:
-                cart
-            }
-          );
-
-
-          callback(
-            false,
-            cart
-          );
-
-
-          return;
-
-        }
-
-
-        setTimeout(
-          function () {
-
-            waitForQuantity(
-              job,
-              targetQuantity,
-              attempt + 1,
-              callback
-            );
-
-          },
-          VERIFY_INTERVAL_MS
-        );
-
-      }
-    );
-
-  }
-
-
-  /* =======================================================
-     ADD ONE INCOMING LINE
-  ======================================================= */
-
-  function addPayloadLine(
-    job,
-    done
-  ) {
-
-    Ecwid.Cart.get(
-      function (
-        beforeCart
-      ) {
-
-        var existing =
-          matchingQuantity(
-            beforeCart,
-            job
-          );
-
-
-        var quantityToAdd =
-          Number(
-            job.quantity ||
-            1
-          );
-
-
-        var target =
-          existing +
-          quantityToAdd;
-
-
-        log(
-          'Adding configured line:',
-          {
-            id:
-              job.id,
-
-            existing:
-              existing,
-
-            add:
-              quantityToAdd,
-
-            target:
-              target,
-
-            options:
-              job.options ||
-              {}
-          }
-        );
-
-
-        Ecwid.Cart.addProduct({
-
-          id:
-            Number(
-              job.id
-            ),
-
-          quantity:
-            quantityToAdd,
-
-          options:
-            job.options ||
-            {},
-
-          callback:
-            function (
-              success,
-              product,
-              callbackCart,
-              cartError
-            ) {
-
-              log(
-                'addProduct callback:',
-                {
-                  success:
-                    success,
-
-                  product:
-                    product ||
-                    null,
-
-                  error:
-                    cartError ||
-                    null
                 }
-              );
 
 
-              if (
-                !success
-              ) {
-
-                error(
-                  'Ecwid addProduct failed',
-                  job,
-                  cartError
+                reject(
+                  new Error(
+                    cartError
+                      ? String(
+                          cartError
+                        )
+                      : 'Ecwid.Cart.addProduct failed'
+                  )
                 );
-
-
-                done(false);
-
-
-                return;
 
               }
 
+          });
 
-              setTimeout(
-                function () {
 
-                  waitForQuantity(
-                    job,
-                    target,
-                    1,
-                    function (
-                      verified
-                    ) {
+        } catch (err) {
 
-                      done(
-                        verified
-                      );
+          reject(
+            err
+          );
 
-                    }
-                  );
-
-                },
-                VERIFY_INTERVAL_MS
-              );
-
-            }
-
-        });
+        }
 
       }
     );
@@ -1162,27 +584,123 @@
   }
 
 
+
   /* =======================================================
-     PROCESS LINES SEQUENTIALLY
+     PROCESS HANDOFF
   ======================================================= */
 
-  function processLines(
-    products,
-    index
+  async function processHandoff(
+    message
   ) {
 
-    index =
-      index || 0;
+    var handoffId =
+      String(
+        message.handoffId ||
+        ''
+      );
+
+
+    var products =
+      Array.isArray(
+        message.products
+      )
+        ? message.products
+        : [];
 
 
     if (
-      index >=
-      products.length
+      !handoffId ||
+      products.length ===
+        0
+    ) {
+
+      error(
+        'Invalid handoff:',
+        message
+      );
+
+
+      sendToWix({
+
+        type:
+          'OYSTER_CART_HANDOFF_ERROR',
+
+        handoffId:
+          handoffId,
+
+        error:
+          'Invalid handoff payload'
+
+      });
+
+
+      return;
+
+    }
+
+
+    /*
+     * Stop READY spam after Wix responds.
+     */
+
+    stopReadyAnnouncements();
+
+
+    /* -----------------------------------------------------
+       SAME HANDOFF CURRENTLY PROCESSING
+    ----------------------------------------------------- */
+
+    if (
+      ACTIVE_HANDOFF_ID ===
+      handoffId
     ) {
 
       log(
-        'ALL ADDITIONS VERIFIED'
+        'Same handoff already processing — ignored:',
+        handoffId
       );
+
+
+      return;
+
+    }
+
+
+    var previous =
+      getHandoffState(
+        handoffId
+      );
+
+
+    /* -----------------------------------------------------
+       ALREADY COMPLETED
+       This is our replay protection.
+    ----------------------------------------------------- */
+
+    if (
+      previous &&
+      previous.status ===
+        'complete'
+    ) {
+
+      log(
+        'Handoff already completed — replay ignored:',
+        handoffId
+      );
+
+
+      sendToWix({
+
+        type:
+          'OYSTER_CART_HANDOFF_SUCCESS',
+
+        handoffId:
+          handoffId,
+
+        replay:
+          true
+
+      });
 
 
       setTimeout(
@@ -1193,7 +711,7 @@
           );
 
         },
-        300
+        100
       );
 
 
@@ -1202,169 +720,317 @@
     }
 
 
-    var job =
-      products[index];
+    ACTIVE_HANDOFF_ID =
+      handoffId;
 
 
-    addPayloadLine(
-      job,
-      function (
-        success
-      ) {
+    /*
+     * If a previous attempt stopped after item 0,
+     * completedIndexes allows us to resume without
+     * adding item 0 again.
+     */
 
-        if (
-          !success
-        ) {
+    var completedIndexes =
 
-          error(
-            'handoff stopped — line could not be verified',
-            job
-          );
+      previous &&
+      Array.isArray(
+        previous.completedIndexes
+      )
 
+        ? previous.completedIndexes.slice()
 
-          return;
-
-        }
+        : [];
 
 
-        processLines(
-          products,
-          index + 1
-        );
+    saveHandoffState(
+      handoffId,
+      {
+
+        status:
+          'processing',
+
+        completedIndexes:
+          completedIndexes,
+
+        updatedAt:
+          Date.now()
 
       }
     );
 
-  }
-
-
-  /* =======================================================
-     PROCESS COMMAND
-  ======================================================= */
-
-  function processAddCommand(
-    encodedPayload
-  ) {
-
-    if (
-      !encodedPayload
-    ) {
-
-      return;
-
-    }
-
-
-    var json =
-      decodeBase64Utf8(
-        encodedPayload
-      );
-
-
-    if (!json) {
-
-      error(
-        'payload could not be decoded'
-      );
-
-
-      return;
-
-    }
-
-
-    var payload;
-
 
     try {
 
-      payload =
-        JSON.parse(
-          json
+      for (
+        var index = 0;
+        index <
+          products.length;
+        index++
+      ) {
+
+        /*
+         * Already successfully added in an earlier
+         * attempt? Skip it.
+         */
+
+        if (
+          completedIndexes.indexOf(
+            index
+          ) !==
+          -1
+        ) {
+
+          log(
+            'Skipping already completed line:',
+            index
+          );
+
+
+          continue;
+
+        }
+
+
+        await addOneProduct(
+          products[index]
         );
 
 
-    } catch (e) {
+        completedIndexes.push(
+          index
+        );
 
-      error(
-        'payload JSON invalid',
-        e,
-        json
+
+        saveHandoffState(
+          handoffId,
+          {
+
+            status:
+              'processing',
+
+            completedIndexes:
+              completedIndexes.slice(),
+
+            updatedAt:
+              Date.now()
+
+          }
+        );
+
+      }
+
+
+      /* ---------------------------------------------------
+         ALL PRODUCTS SUCCESSFUL
+      --------------------------------------------------- */
+
+      saveHandoffState(
+        handoffId,
+        {
+
+          status:
+            'complete',
+
+          completedIndexes:
+            completedIndexes.slice(),
+
+          updatedAt:
+            Date.now()
+
+        }
       );
 
-
-      return;
-
-    }
-
-
-    log(
-      'Decoded additive payload:',
-      payload
-    );
-
-
-    if (
-      !payload ||
-      !Array.isArray(
-        payload.products
-      ) ||
-      payload.products.length ===
-        0
-    ) {
-
-      error(
-        'payload contains no products'
-      );
-
-
-      return;
-
-    }
-
-
-    processLines(
-      payload.products,
-      0
-    );
-
-  }
-
-
-  /* =======================================================
-     RUN COMMAND
-  ======================================================= */
-
-  function runCartCommand() {
-
-    var payload =
-      findAddPayload();
-
-
-    if (!payload) {
 
       log(
-        'NO ocCartAdd command found'
+        'HANDOFF COMPLETE:',
+        handoffId
       );
 
 
-      return;
+      sendToWix({
+
+        type:
+          'OYSTER_CART_HANDOFF_SUCCESS',
+
+        handoffId:
+          handoffId
+
+      });
+
+
+      ACTIVE_HANDOFF_ID =
+        null;
+
+
+      /*
+       * Give acknowledgement a moment to reach Wix
+       * before changing Ecwid internal page.
+       */
+
+      setTimeout(
+        function () {
+
+          Ecwid.openPage(
+            'cart'
+          );
+
+        },
+        200
+      );
+
+
+    } catch (err) {
+
+      error(
+        'HANDOFF FAILED:',
+        handoffId,
+        err
+      );
+
+
+      saveHandoffState(
+        handoffId,
+        {
+
+          status:
+            'failed',
+
+          completedIndexes:
+            completedIndexes.slice(),
+
+          error:
+            String(
+              err &&
+              err.message
+                ? err.message
+                : err
+            ),
+
+          updatedAt:
+            Date.now()
+
+        }
+      );
+
+
+      sendToWix({
+
+        type:
+          'OYSTER_CART_HANDOFF_ERROR',
+
+        handoffId:
+          handoffId,
+
+        error:
+          String(
+            err &&
+            err.message
+              ? err.message
+              : err
+          )
+
+      });
+
+
+      ACTIVE_HANDOFF_ID =
+        null;
+
+
+      /*
+       * Start announcing READY again so a refresh
+       * or retry can resume the incomplete handoff.
+       */
+
+      setTimeout(
+        startReadyAnnouncements,
+        500
+      );
 
     }
-
-
-    processAddCommand(
-      payload
-    );
 
   }
 
 
+
   /* =======================================================
-     WAIT FOR ECWID
+     RECEIVE MESSAGE FROM WIX
   ======================================================= */
 
-  function startCartBridge() {
+  window.addEventListener(
+
+    'message',
+
+    function (event) {
+
+      var message =
+        event.data;
+
+
+      if (
+        !message ||
+        typeof message !==
+          'object'
+      ) {
+
+        return;
+
+      }
+
+
+      if (
+        message.type ===
+        'OYSTER_CART_HANDOFF'
+      ) {
+
+        log(
+          'Received handoff from Wix:',
+          message.handoffId
+        );
+
+
+        processHandoff(
+          message
+        );
+
+
+        return;
+
+      }
+
+
+      if (
+        message.type ===
+        'OYSTER_CART_OPEN_CART'
+      ) {
+
+        log(
+          'Open-cart command received'
+        );
+
+
+        if (
+          API_READY
+        ) {
+
+          Ecwid.openPage(
+            'cart'
+          );
+
+        }
+
+      }
+
+    }
+
+  );
+
+
+
+  /* =======================================================
+     ECWID API READY
+  ======================================================= */
+
+  function startBridge() {
 
     if (
       typeof Ecwid ===
@@ -1373,8 +1039,8 @@
     ) {
 
       setTimeout(
-        startCartBridge,
-        500
+        startBridge,
+        250
       );
 
 
@@ -1386,15 +1052,16 @@
     Ecwid.OnAPILoaded.add(
       function () {
 
+        API_READY =
+          true;
+
+
         log(
-          'Ecwid API loaded'
+          'Ecwid API READY'
         );
 
 
-        setTimeout(
-          runCartCommand,
-          300
-        );
+        startReadyAnnouncements();
 
       }
     );
@@ -1407,7 +1074,7 @@
   );
 
 
-  startCartBridge();
+  startBridge();
 
 })();
 
@@ -1417,11 +1084,7 @@
    OYSTER CART — DATE BLOCKER
    Mussel Madness Ticket
 
-   v5
-   Adds ALLOWED_DATES to override weekday blocks.
-
-   Last updated:
-   2026-06-10
+   Existing date blocker retained.
 ========================================================= */
 
 (function () {
@@ -1455,6 +1118,7 @@
 
   var TARGET_PRODUCT_ID =
     806985688;
+
 
 
   function log() {
@@ -1639,7 +1303,8 @@
             if (
               headerText.indexOf(
                 name
-              ) !== -1
+              ) !==
+              -1
             ) {
 
               month =
@@ -1671,8 +1336,10 @@
 
 
         if (
-          month === -1 ||
-          year === -1
+          month ===
+            -1 ||
+          year ===
+            -1
         ) {
 
           return;
@@ -1843,7 +1510,7 @@
               '-' +
               pad(
                 cellMonth +
-                  1
+                1
               ) +
               '-' +
               pad(
@@ -2068,7 +1735,7 @@
 
 
         log(
-          'Target product detected, watching for date picker'
+          'Target product detected'
         );
 
 
