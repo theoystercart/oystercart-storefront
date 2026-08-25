@@ -1769,3 +1769,412 @@
   startDateBlocker();
 
 })();
+
+
+/* =========================================================
+   OYSTER CART — CART PRODUCT LINK REROUTER
+   VERSION 1
+
+   PURPOSE:
+   - Re-route ONLY selected normal-delivery products from the
+     Ecwid cart to their new Wix /products/... pages.
+   - Run ONLY while Ecwid is displaying the CART.
+   - Leave workshops, events, tickets, and every unlisted
+     Ecwid product completely untouched.
+   - Preserve Ecwid as the product page for items that still
+     depend on Ecwid-specific controls such as date pickers.
+========================================================= */
+
+(function () {
+
+  'use strict';
+
+
+  var PREFIX =
+    '[OysterCart Cart Links V1]';
+
+
+  /*
+   * IMPORTANT:
+   * This is a strict allow-list.
+   *
+   * If a product ID is NOT listed here, its Ecwid link
+   * is not changed.
+   *
+   * Therefore workshop/event products remain on Ecwid
+   * unless they are deliberately added to this list later.
+   */
+  var PRODUCT_URLS = {
+
+    '522362757':
+      '/products/deluxe',
+
+    '530329925':
+      '/products/mix',
+
+    '522415252':
+      '/products/premium',
+
+    '207786863':
+      '/products/cold-littleneck-clams',
+
+    '488853391':
+      '/products/classic-wine-broth-mussel-pot',
+
+    '704106068':
+      '/products/dashi-clams',
+
+    '531010906':
+      '/products/fine-de-claire',
+
+    '185491924':
+      '/products/oyster-soiree',
+
+    '703979636':
+      '/products/chilli-tomato-mussels',
+
+    '824351028':
+      '/products/green-lipped-mussels-in-wine-broth',
+
+    '438103589':
+      '/products/caviar-tart',
+
+    '393943369':
+      '/products/kaviari-caviar',
+
+    '445743026':
+      '/products/arctic-cold-shrimps',
+
+    '260170144':
+      '/products/cocktail-shrimps',
+
+    '374456001':
+      '/products/mexican-seafood-ceviche',
+
+    '445455381':
+      '/products/seafood-stew',
+
+    '199205320':
+      '/products/shrimp-lobster-rolls',
+
+    '807467598':
+      '/products/smoked-cream-cheese-platter',
+
+    '810652253':
+      '/products/handsmoked-cold-salmon',
+
+    '805505400':
+      '/products/aus-striploin',
+
+    '805523047':
+      '/products/nz-grain-fed-tomahawk',
+
+    '528371264':
+      '/products/beef-tartare'
+
+  };
+
+
+  var observer =
+    null;
+
+
+  function log() {
+
+    var args =
+      [PREFIX].concat(
+        Array.prototype.slice.call(
+          arguments
+        )
+      );
+
+
+    console.log.apply(
+      console,
+      args
+    );
+
+  }
+
+
+  function extractProductId(
+    href
+  ) {
+
+    if (!href) {
+
+      return null;
+
+    }
+
+
+    /*
+     * Standard Ecwid/Wix product URLs look like:
+     *
+     * /online-store/Deluxe-p522362757
+     */
+    var match =
+      String(href).match(
+        /-p(\d+)(?:[/?#]|$)/i
+      );
+
+
+    if (
+      match &&
+      match[1]
+    ) {
+
+      return String(
+        match[1]
+      );
+
+    }
+
+
+    return null;
+
+  }
+
+
+  function rewriteCartProductLinks() {
+
+    var links =
+      document.querySelectorAll(
+        'a[href*="-p"]'
+      );
+
+
+    var changed =
+      0;
+
+
+    Array.prototype.forEach.call(
+      links,
+      function (link) {
+
+        var oldHref =
+          link.getAttribute(
+            'href'
+          ) ||
+          '';
+
+
+        var productId =
+          extractProductId(
+            oldHref
+          );
+
+
+        if (!productId) {
+
+          return;
+
+        }
+
+
+        var newPath =
+          PRODUCT_URLS[
+            productId
+          ];
+
+
+        /*
+         * Not on our delivery-product allow-list?
+         *
+         * Leave it exactly as Ecwid created it.
+         * This is what protects workshops/events.
+         */
+        if (!newPath) {
+
+          return;
+
+        }
+
+
+        var newUrl =
+          'https://www.theoystercart.com' +
+          newPath;
+
+
+        if (
+          link.href ===
+          newUrl
+        ) {
+
+          return;
+
+        }
+
+
+        link.href =
+          newUrl;
+
+
+        /*
+         * Ecwid is inside the Wix app iframe.
+         * Open the Wix dynamic product page at the
+         * top-level site, never inside the Ecwid iframe.
+         */
+        link.target =
+          '_top';
+
+
+        changed++;
+
+
+        log(
+          'Rewritten:',
+          {
+            productId:
+              productId,
+
+            oldHref:
+              oldHref,
+
+            newHref:
+              newUrl
+          }
+        );
+
+      }
+    );
+
+
+    if (
+      changed >
+      0
+    ) {
+
+      log(
+        'Cart links updated:',
+        changed
+      );
+
+    }
+
+  }
+
+
+  function stopObserver() {
+
+    if (
+      observer
+    ) {
+
+      observer.disconnect();
+
+      observer =
+        null;
+
+    }
+
+  }
+
+
+  function startObserver() {
+
+    stopObserver();
+
+
+    rewriteCartProductLinks();
+
+
+    observer =
+      new MutationObserver(
+        function () {
+
+          rewriteCartProductLinks();
+
+        }
+      );
+
+
+    observer.observe(
+      document.body,
+      {
+
+        childList:
+          true,
+
+        subtree:
+          true
+
+      }
+    );
+
+  }
+
+
+  function startCartLinkRerouter() {
+
+    if (
+      typeof Ecwid ===
+        'undefined' ||
+      !Ecwid.OnAPILoaded ||
+      !Ecwid.OnPageLoaded
+    ) {
+
+      setTimeout(
+        startCartLinkRerouter,
+        500
+      );
+
+
+      return;
+
+    }
+
+
+    Ecwid.OnAPILoaded.add(
+      function () {
+
+        log(
+          'Ecwid API loaded'
+        );
+
+      }
+    );
+
+
+    Ecwid.OnPageLoaded.add(
+      function (
+        page
+      ) {
+
+        if (
+          !page ||
+          page.type !==
+            'CART'
+        ) {
+
+          /*
+           * Outside the cart, do absolutely nothing.
+           */
+          stopObserver();
+
+          return;
+
+        }
+
+
+        log(
+          'Cart detected'
+        );
+
+
+        startObserver();
+
+      }
+    );
+
+  }
+
+
+  log(
+    'Loaded'
+  );
+
+
+  startCartLinkRerouter();
+
+})();
