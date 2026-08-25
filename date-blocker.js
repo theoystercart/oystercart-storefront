@@ -18,18 +18,37 @@
 ========================================================= */
 
 (function () {
+
   'use strict';
 
-  var PREFIX = '[OysterCart Bridge V7]';
 
-  var API_READY = false;
-  var ACTIVE_HANDOFF_ID = null;
-  var READY_TIMER = null;
-  var READY_COUNT = 0;
-  var MAX_READY_MESSAGES = 30;
+  var PREFIX =
+    '[OysterCart Bridge V7]';
+
+
+  var API_READY =
+    false;
+
+
+  var ACTIVE_HANDOFF_ID =
+    null;
+
+
+  var READY_TIMER =
+    null;
+
+
+  var READY_COUNT =
+    0;
+
+
+  var MAX_READY_MESSAGES =
+    30;
+
 
   var STORAGE_KEY =
     'oysterCart_handoff_state_v7';
+
 
 
   /* =======================================================
@@ -37,21 +56,25 @@
   ======================================================= */
 
   function log() {
+
     var args =
       [PREFIX].concat(
         Array.prototype.slice.call(
           arguments
         )
       );
+
 
     console.log.apply(
       console,
       args
     );
+
   }
 
 
   function error() {
+
     var args =
       [PREFIX].concat(
         Array.prototype.slice.call(
@@ -59,11 +82,14 @@
         )
       );
 
+
     console.error.apply(
       console,
       args
     );
+
   }
+
 
 
   /* =======================================================
@@ -71,24 +97,32 @@
   ======================================================= */
 
   function sendToWix(message) {
+
     try {
+
       window.parent.postMessage(
         message,
         '*'
       );
+
 
       log(
         'Sent to Wix:',
         message
       );
 
+
     } catch (err) {
+
       error(
         'Could not message Wix parent:',
         err
       );
+
     }
+
   }
+
 
 
   /* =======================================================
@@ -96,50 +130,89 @@
   ======================================================= */
 
   function announceReady() {
-    if (!API_READY) {
+
+    if (
+      !API_READY
+    ) {
+
       return;
+
     }
 
+
     sendToWix({
+
       type:
         'OYSTER_CART_BRIDGE_READY'
+
     });
 
+
     READY_COUNT++;
+
 
     if (
       READY_COUNT >=
       MAX_READY_MESSAGES
     ) {
+
       stopReadyAnnouncements();
+
     }
+
   }
 
 
   function startReadyAnnouncements() {
+
     stopReadyAnnouncements();
 
-    READY_COUNT = 0;
+
+    READY_COUNT =
+      0;
+
+
+    /*
+     * Send immediately.
+     */
 
     announceReady();
+
+
+    /*
+     * Repeat briefly.
+     *
+     * If Wix page wasn't listening on the first
+     * millisecond, the next READY message catches it.
+     */
 
     READY_TIMER =
       setInterval(
         announceReady,
         300
       );
+
   }
 
 
   function stopReadyAnnouncements() {
-    if (READY_TIMER) {
+
+    if (
+      READY_TIMER
+    ) {
+
       clearInterval(
         READY_TIMER
       );
 
-      READY_TIMER = null;
+
+      READY_TIMER =
+        null;
+
     }
+
   }
+
 
 
   /* =======================================================
@@ -147,39 +220,55 @@
   ======================================================= */
 
   function readState() {
+
     try {
+
       var raw =
         localStorage.getItem(
           STORAGE_KEY
         );
 
+
       if (!raw) {
+
         return {};
+
       }
+
 
       var parsed =
         JSON.parse(
           raw
         );
 
+
       if (
         !parsed ||
         typeof parsed !==
           'object'
       ) {
+
         return {};
+
       }
+
 
       return parsed;
 
+
     } catch (err) {
+
       return {};
+
     }
+
   }
 
 
   function writeState(state) {
+
     try {
+
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify(
@@ -187,20 +276,26 @@
         )
       );
 
+
     } catch (err) {
+
       error(
         'Could not persist handoff state:',
         err
       );
+
     }
+
   }
 
 
   function getHandoffState(
     handoffId
   ) {
+
     var state =
       readState();
+
 
     return (
       state[
@@ -208,6 +303,7 @@
       ] ||
       null
     );
+
   }
 
 
@@ -215,29 +311,39 @@
     handoffId,
     handoffState
   ) {
+
     var state =
       readState();
+
 
     state[
       handoffId
     ] =
       handoffState;
 
+
+    /*
+     * Keep storage bounded.
+     */
+
     var ids =
       Object.keys(
         state
       );
 
+
     if (
       ids.length >
       40
     ) {
+
       ids
         .sort(
           function (
             a,
             b
           ) {
+
             return (
               Number(
                 state[a].updatedAt ||
@@ -248,24 +354,31 @@
                 0
               )
             );
+
           }
         )
         .slice(
           0,
           ids.length -
-          40
+            40
         )
         .forEach(
           function (id) {
+
             delete state[id];
+
           }
         );
+
     }
+
 
     writeState(
       state
     );
+
   }
+
 
 
   /* =======================================================
@@ -275,14 +388,19 @@
   function cleanProduct(
     product
   ) {
+
     if (
       !product ||
       !product.id
     ) {
+
       return null;
+
     }
 
+
     var clean = {
+
       id:
         Number(
           product.id
@@ -293,7 +411,9 @@
           product.quantity ||
           1
         )
+
     };
+
 
     if (
       !clean.id ||
@@ -301,29 +421,40 @@
         clean.id
       )
     ) {
+
       return null;
+
     }
+
 
     if (
       !clean.quantity ||
       clean.quantity <
-      1
+        1
     ) {
+
       clean.quantity =
         1;
+
     }
+
 
     if (
       product.options &&
       typeof product.options ===
         'object'
     ) {
+
       clean.options =
         product.options;
+
     }
 
+
     return clean;
+
   }
+
 
 
   /* =======================================================
@@ -333,33 +464,43 @@
   function addOneProduct(
     product
   ) {
+
     return new Promise(
       function (
         resolve,
         reject
       ) {
+
         var clean =
           cleanProduct(
             product
           );
 
+
         if (!clean) {
+
           reject(
             new Error(
               'Invalid product payload'
             )
           );
 
+
           return;
+
         }
+
 
         log(
           'Adding product:',
           clean
         );
 
+
         try {
+
           Ecwid.Cart.addProduct({
+
             id:
               clean.id,
 
@@ -377,6 +518,7 @@
                 cart,
                 cartError
               ) {
+
                 log(
                   'addProduct callback:',
                   {
@@ -393,9 +535,11 @@
                   }
                 );
 
+
                 if (
                   success
                 ) {
+
                   resolve({
                     product:
                       clean,
@@ -405,8 +549,11 @@
                       null
                   });
 
+
                   return;
+
                 }
+
 
                 reject(
                   new Error(
@@ -417,17 +564,25 @@
                       : 'Ecwid.Cart.addProduct failed'
                   )
                 );
+
               }
+
           });
 
+
         } catch (err) {
+
           reject(
             err
           );
+
         }
+
       }
     );
+
   }
+
 
 
   /* =======================================================
@@ -437,11 +592,13 @@
   async function processHandoff(
     message
   ) {
+
     var handoffId =
       String(
         message.handoffId ||
         ''
       );
+
 
     var products =
       Array.isArray(
@@ -450,17 +607,21 @@
         ? message.products
         : [];
 
+
     if (
       !handoffId ||
       products.length ===
-      0
+        0
     ) {
+
       error(
         'Invalid handoff:',
         message
       );
 
+
       sendToWix({
+
         type:
           'OYSTER_CART_HANDOFF_ERROR',
 
@@ -469,41 +630,67 @@
 
         error:
           'Invalid handoff payload'
+
       });
 
+
       return;
+
     }
 
+
+    /*
+     * Stop READY spam after Wix responds.
+     */
+
     stopReadyAnnouncements();
+
+
+    /* -----------------------------------------------------
+       SAME HANDOFF CURRENTLY PROCESSING
+    ----------------------------------------------------- */
 
     if (
       ACTIVE_HANDOFF_ID ===
       handoffId
     ) {
+
       log(
         'Same handoff already processing — ignored:',
         handoffId
       );
 
+
       return;
+
     }
+
 
     var previous =
       getHandoffState(
         handoffId
       );
 
+
+    /* -----------------------------------------------------
+       ALREADY COMPLETED
+       This is our replay protection.
+    ----------------------------------------------------- */
+
     if (
       previous &&
       previous.status ===
         'complete'
     ) {
+
       log(
         'Handoff already completed — replay ignored:',
         handoffId
       );
 
+
       sendToWix({
+
         type:
           'OYSTER_CART_HANDOFF_SUCCESS',
 
@@ -512,34 +699,53 @@
 
         replay:
           true
+
       });
+
 
       setTimeout(
         function () {
+
           Ecwid.openPage(
             'cart'
           );
+
         },
         100
       );
 
+
       return;
+
     }
+
 
     ACTIVE_HANDOFF_ID =
       handoffId;
 
+
+    /*
+     * If a previous attempt stopped after item 0,
+     * completedIndexes allows us to resume without
+     * adding item 0 again.
+     */
+
     var completedIndexes =
+
       previous &&
       Array.isArray(
         previous.completedIndexes
       )
+
         ? previous.completedIndexes.slice()
+
         : [];
+
 
     saveHandoffState(
       handoffId,
       {
+
         status:
           'processing',
 
@@ -548,41 +754,57 @@
 
         updatedAt:
           Date.now()
+
       }
     );
 
+
     try {
+
       for (
         var index = 0;
         index <
-        products.length;
+          products.length;
         index++
       ) {
+
+        /*
+         * Already successfully added in an earlier
+         * attempt? Skip it.
+         */
+
         if (
           completedIndexes.indexOf(
             index
           ) !==
           -1
         ) {
+
           log(
             'Skipping already completed line:',
             index
           );
 
+
           continue;
+
         }
+
 
         await addOneProduct(
           products[index]
         );
 
+
         completedIndexes.push(
           index
         );
 
+
         saveHandoffState(
           handoffId,
           {
+
             status:
               'processing',
 
@@ -591,13 +813,21 @@
 
             updatedAt:
               Date.now()
+
           }
         );
+
       }
+
+
+      /* ---------------------------------------------------
+         ALL PRODUCTS SUCCESSFUL
+      --------------------------------------------------- */
 
       saveHandoffState(
         handoffId,
         {
+
           status:
             'complete',
 
@@ -606,44 +836,62 @@
 
           updatedAt:
             Date.now()
+
         }
       );
+
 
       log(
         'HANDOFF COMPLETE:',
         handoffId
       );
 
+
       sendToWix({
+
         type:
           'OYSTER_CART_HANDOFF_SUCCESS',
 
         handoffId:
           handoffId
+
       });
+
 
       ACTIVE_HANDOFF_ID =
         null;
 
+
+      /*
+       * Give acknowledgement a moment to reach Wix
+       * before changing Ecwid internal page.
+       */
+
       setTimeout(
         function () {
+
           Ecwid.openPage(
             'cart'
           );
+
         },
         200
       );
 
+
     } catch (err) {
+
       error(
         'HANDOFF FAILED:',
         handoffId,
         err
       );
 
+
       saveHandoffState(
         handoffId,
         {
+
           status:
             'failed',
 
@@ -660,10 +908,13 @@
 
           updatedAt:
             Date.now()
+
         }
       );
 
+
       sendToWix({
+
         type:
           'OYSTER_CART_HANDOFF_ERROR',
 
@@ -677,17 +928,28 @@
               ? err.message
               : err
           )
+
       });
+
 
       ACTIVE_HANDOFF_ID =
         null;
+
+
+      /*
+       * Start announcing READY again so a refresh
+       * or retry can resume the incomplete handoff.
+       */
 
       setTimeout(
         startReadyAnnouncements,
         500
       );
+
     }
+
   }
+
 
 
   /* =======================================================
@@ -695,54 +957,73 @@
   ======================================================= */
 
   window.addEventListener(
+
     'message',
 
     function (event) {
+
       var message =
         event.data;
+
 
       if (
         !message ||
         typeof message !==
           'object'
       ) {
+
         return;
+
       }
+
 
       if (
         message.type ===
         'OYSTER_CART_HANDOFF'
       ) {
+
         log(
           'Received handoff from Wix:',
           message.handoffId
         );
 
+
         processHandoff(
           message
         );
 
+
         return;
+
       }
+
 
       if (
         message.type ===
         'OYSTER_CART_OPEN_CART'
       ) {
+
         log(
           'Open-cart command received'
         );
 
+
         if (
           API_READY
         ) {
+
           Ecwid.openPage(
             'cart'
           );
+
         }
+
       }
+
     }
+
   );
+
 
 
   /* =======================================================
@@ -750,37 +1031,48 @@
   ======================================================= */
 
   function startBridge() {
+
     if (
       typeof Ecwid ===
         'undefined' ||
       !Ecwid.OnAPILoaded
     ) {
+
       setTimeout(
         startBridge,
         250
       );
 
+
       return;
+
     }
+
 
     Ecwid.OnAPILoaded.add(
       function () {
+
         API_READY =
           true;
+
 
         log(
           'Ecwid API READY'
         );
 
+
         startReadyAnnouncements();
+
       }
     );
+
   }
 
 
   log(
     'Loaded'
   );
+
 
   startBridge();
 
@@ -796,31 +1088,41 @@
 ========================================================= */
 
 (function () {
+
   'use strict';
+
 
   var BLOCKED_WEEKDAYS =
     [0, 1, 3, 5, 6];
 
+
   var BLOCKED_DATES =
     [];
+
 
   var ALLOWED_DATES =
     [];
 
+
   var CUTOFF_HOUR =
     0;
+
 
   var CUTOFF_MINUTE =
     30;
 
+
   var SGT_OFFSET_HOURS =
     8;
+
 
   var TARGET_PRODUCT_ID =
     806985688;
 
 
+
   function log() {
+
     var args =
       [
         '[OysterCart DateBlocker]'
@@ -830,25 +1132,31 @@
         )
       );
 
+
     console.log.apply(
       console,
       args
     );
+
   }
 
 
   function pad(n) {
+
     return String(n)
       .padStart(
         2,
         '0'
       );
+
   }
 
 
   function nowInSGT() {
+
     var now =
       new Date();
+
 
     return new Date(
       now.getTime() +
@@ -861,19 +1169,25 @@
         3600000
       )
     );
+
   }
 
 
   function isPastCutoffSGT() {
+
     var s =
       nowInSGT();
+
 
     if (
       s.getHours() >
       CUTOFF_HOUR
     ) {
+
       return true;
+
     }
+
 
     if (
       s.getHours() ===
@@ -881,16 +1195,22 @@
       s.getMinutes() >=
         CUTOFF_MINUTE
     ) {
+
       return true;
+
     }
 
+
     return false;
+
   }
 
 
   function todayKeySGT() {
+
     var d =
       nowInSGT();
+
 
     return (
       d.getFullYear() +
@@ -904,23 +1224,30 @@
         d.getDate()
       )
     );
+
   }
 
 
   function applyBlocks() {
+
     var menus =
       document.querySelectorAll(
         '.dp__menu, .dp__instance_calendar'
       );
 
+
     if (
       menus.length ===
       0
     ) {
+
       return;
+
     }
 
+
     var monthNames = [
+
       'january',
       'february',
       'march',
@@ -933,61 +1260,80 @@
       'october',
       'november',
       'december'
+
     ];
+
 
     menus.forEach(
       function (menu) {
+
         var header =
           menu.querySelector(
             '.dp__month_year_wrap, .dp__month_year_select'
           );
 
+
         if (!header) {
+
           return;
+
         }
+
 
         var headerText =
           header.textContent
             .trim()
             .toLowerCase();
 
+
         var month =
           -1;
 
+
         var year =
           -1;
+
 
         monthNames.forEach(
           function (
             name,
             index
           ) {
+
             if (
               headerText.indexOf(
                 name
               ) !==
               -1
             ) {
+
               month =
                 index;
+
             }
+
           }
         );
+
 
         var yearMatch =
           headerText.match(
             /\d{4}/
           );
 
+
         if (
           yearMatch
         ) {
+
           year =
             parseInt(
               yearMatch[0],
               10
             );
+
         }
+
 
         if (
           month ===
@@ -995,11 +1341,15 @@
           year ===
             -1
         ) {
+
           return;
+
         }
+
 
         var singaporeNow =
           nowInSGT();
+
 
         var todaySG =
           new Date(
@@ -1008,38 +1358,48 @@
             singaporeNow.getDate()
           );
 
+
         var todayKey =
           todayKeySGT();
 
+
         var pastCutoff =
           isPastCutoffSGT();
+
 
         var cells =
           menu.querySelectorAll(
             '.dp__cell_inner'
           );
 
+
         var blockedCount =
           0;
+
 
         var cellArray =
           Array.prototype.slice.call(
             cells
           );
 
+
         cellArray.forEach(
           function (
             cell,
             index
           ) {
+
             if (
               cell.getAttribute(
                 'data-blocked'
               ) ===
               'true'
             ) {
+
               return;
+
             }
+
 
             var day =
               parseInt(
@@ -1047,31 +1407,40 @@
                 10
               );
 
+
             if (
               isNaN(day)
             ) {
+
               return;
+
             }
+
 
             var cellMonth =
               month;
 
+
             var cellYear =
               year;
+
 
             var isOffset =
               cell.classList.contains(
                 'dp__cell_offset'
               );
 
+
             if (
               isOffset
             ) {
+
               var rowIndex =
                 Math.floor(
                   index /
                   7
                 );
+
 
               if (
                 rowIndex ===
@@ -1079,40 +1448,54 @@
                 day >
                   20
               ) {
+
                 cellMonth =
                   month -
                   1;
+
 
                 if (
                   cellMonth <
                   0
                 ) {
+
                   cellMonth =
                     11;
+
 
                   cellYear =
                     year -
                     1;
+
                 }
 
+
               } else {
+
                 cellMonth =
                   month +
                   1;
+
 
                 if (
                   cellMonth >
                   11
                 ) {
+
                   cellMonth =
                     0;
+
 
                   cellYear =
                     year +
                     1;
+
                 }
+
               }
+
             }
+
 
             var cellDate =
               new Date(
@@ -1120,6 +1503,7 @@
                 cellMonth,
                 day
               );
+
 
             var dateString =
               cellYear +
@@ -1133,28 +1517,37 @@
                 day
               );
 
+
             var weekday =
               cellDate.getDay();
 
+
             var block =
               false;
+
 
             if (
               cellDate <
               todaySG
             ) {
+
               block =
                 true;
+
             }
+
 
             if (
               dateString ===
                 todayKey &&
               pastCutoff
             ) {
+
               block =
                 true;
+
             }
+
 
             if (
               BLOCKED_WEEKDAYS
@@ -1163,9 +1556,12 @@
                 ) !==
               -1
             ) {
+
               block =
                 true;
+
             }
+
 
             if (
               BLOCKED_DATES
@@ -1174,9 +1570,12 @@
                 ) !==
               -1
             ) {
+
               block =
                 true;
+
             }
+
 
             if (
               ALLOWED_DATES
@@ -1200,97 +1599,128 @@
                 pastCutoff
               )
             ) {
+
               block =
                 false;
+
             }
+
 
             if (
               block
             ) {
+
               cell.classList.add(
                 'dp__cell_disabled'
               );
 
+
               cell.style.pointerEvents =
                 'none';
+
 
               cell.style.opacity =
                 '0.3';
 
+
               cell.style.textDecoration =
                 'line-through';
+
 
               cell.setAttribute(
                 'data-blocked',
                 'true'
               );
 
+
               cell.setAttribute(
                 'title',
                 'Not available'
               );
 
+
               blockedCount++;
+
             }
+
           }
         );
+
 
         if (
           blockedCount >
           0
         ) {
+
           log(
             'Blocked',
             blockedCount,
             'dates in',
             headerText
           );
+
         }
+
       }
     );
+
   }
 
 
   var observer =
     new MutationObserver(
       function () {
+
         applyBlocks();
+
       }
     );
 
 
   function startDateBlocker() {
+
     if (
       typeof Ecwid ===
         'undefined' ||
       !Ecwid.OnAPILoaded
     ) {
+
       setTimeout(
         startDateBlocker,
         500
       );
 
+
       return;
+
     }
+
 
     Ecwid.OnAPILoaded.add(
       function () {
+
         log(
           'Ecwid API loaded'
         );
+
       }
     );
+
 
     Ecwid.OnPageLoaded.add(
       function (
         page
       ) {
+
         if (
           page.type !==
           'PRODUCT'
         ) {
+
           return;
+
         }
+
 
         if (
           TARGET_PRODUCT_ID !==
@@ -1298,27 +1728,36 @@
           page.productId !==
             TARGET_PRODUCT_ID
         ) {
+
           return;
+
         }
+
 
         log(
           'Target product detected'
         );
 
+
         observer.disconnect();
+
 
         observer.observe(
           document.body,
           {
+
             childList:
               true,
 
             subtree:
               true
+
           }
         );
+
       }
     );
+
   }
 
 
@@ -1326,10 +1765,10 @@
     'Loaded'
   );
 
+
   startDateBlocker();
 
 })();
-
 
 
 /* =========================================================
@@ -1337,30 +1776,32 @@
    VERSION 2
 
    PURPOSE:
-   - Redirect ONLY selected delivery products in the Ecwid
-     cart to Wix /products/... pages.
-   - Only operates while Ecwid is showing CART.
-   - Products not listed below remain in Ecwid.
-   - Workshops/events are therefore untouched unless their
-     IDs are deliberately added to this allow-list.
+   - Re-route ONLY selected normal-delivery products from the
+     Ecwid cart to their new Wix /products/... pages.
+   - Run ONLY while Ecwid is displaying the CART.
+   - Leave workshops, events, tickets, and every unlisted
+     Ecwid product completely untouched.
+   - Preserve Ecwid as the product page for items that still
+     depend on Ecwid-specific controls such as date pickers.
+
+   V2 FIX:
+   - Ecwid can intercept cart clicks with its own SPA router
+     even after an <a href> is rewritten.
+   - V2 intercepts clicks in the CAPTURE phase for allow-listed
+     cart items and performs a top-level navigation to Wix.
 ========================================================= */
 
 (function () {
+
   'use strict';
+
 
   var PREFIX =
     '[OysterCart Cart Links V2]';
 
 
-  /*
-   * STRICT ALLOW-LIST
-   *
-   * ONLY THESE PRODUCT IDS GO TO WIX PRODUCT PAGES.
-   *
-   * Do NOT add workshop/event ticket IDs here if they need
-   * to remain on Ecwid.
-   */
   var PRODUCT_URLS = {
+
     '522362757':
       '/products/deluxe',
 
@@ -1426,21 +1867,24 @@
 
     '528371264':
       '/products/beef-tartare'
+
   };
 
 
   var observer =
     null;
 
+
   var clickHandlerInstalled =
     false;
 
 
-  /* =======================================================
-     LOGGING
-  ======================================================= */
+  var navigationStarted =
+    false;
+
 
   function log() {
+
     var args =
       [PREFIX].concat(
         Array.prototype.slice.call(
@@ -1448,67 +1892,52 @@
         )
       );
 
+
     console.log.apply(
       console,
       args
     );
+
   }
 
-
-  /* =======================================================
-     EXTRACT ECWID PRODUCT ID
-  ======================================================= */
 
   function extractProductId(
     href
   ) {
+
     if (!href) {
+
       return null;
+
     }
 
+
     var match =
-      String(
-        href
-      ).match(
+      String(href).match(
         /-p(\d+)(?:[/?#]|$)/i
       );
+
 
     if (
       match &&
       match[1]
     ) {
+
       return String(
         match[1]
       );
+
     }
 
+
     return null;
+
   }
 
-
-  /* =======================================================
-     REWRITE ONE CART LINK
-  ======================================================= */
 
   function markAndRewriteLink(
     link
   ) {
-    if (!link) {
-      return false;
-    }
-
-    /*
-     * If already marked by this script, don't keep logging
-     * and rewriting it every time MutationObserver fires.
-     */
-    if (
-      link.getAttribute(
-        'data-oyster-cart-product-url'
-      )
-    ) {
-      return false;
-    }
-
 
     var oldHref =
       link.getAttribute(
@@ -1524,7 +1953,9 @@
 
 
     if (!productId) {
+
       return false;
+
     }
 
 
@@ -1535,14 +1966,14 @@
 
 
     /*
-     * NOT IN ALLOW-LIST?
-     *
-     * Leave it completely alone.
-     *
-     * This is what keeps workshops/events on Ecwid.
+     * STRICT ALLOW-LIST:
+     * Anything not listed stays entirely on Ecwid.
+     * This protects workshops/events/date-picker products.
      */
     if (!newPath) {
+
       return false;
+
     }
 
 
@@ -1563,16 +1994,12 @@
     );
 
 
-    link.setAttribute(
-      'href',
-      newUrl
-    );
+    link.href =
+      newUrl;
 
 
-    link.setAttribute(
-      'target',
-      '_top'
-    );
+    link.target =
+      '_top';
 
 
     log(
@@ -1591,14 +2018,12 @@
 
 
     return true;
+
   }
 
 
-  /* =======================================================
-     FIND LINKS IN CART
-  ======================================================= */
-
   function rewriteCartProductLinks() {
+
     var links =
       document.querySelectorAll(
         'a[href*="-p"]'
@@ -1611,17 +2036,18 @@
 
     Array.prototype.forEach.call(
       links,
+      function (link) {
 
-      function (
-        link
-      ) {
         if (
           markAndRewriteLink(
             link
           )
         ) {
+
           changed++;
+
         }
+
       }
     );
 
@@ -1630,63 +2056,25 @@
       changed >
       0
     ) {
+
       log(
         'Cart links updated:',
         changed
       );
-    }
-  }
 
-
-  /* =======================================================
-     FIND A MARKED LINK FROM CLICK TARGET
-  ======================================================= */
-
-  function findMarkedLink(
-    node
-  ) {
-    while (
-      node &&
-      node !==
-        document
-    ) {
-      if (
-        node.tagName ===
-          'A' &&
-        node.getAttribute &&
-        node.getAttribute(
-          'data-oyster-cart-product-url'
-        )
-      ) {
-        return node;
-      }
-
-      node =
-        node.parentNode;
     }
 
-    return null;
   }
 
-
-  /* =======================================================
-     CAPTURE-PHASE CLICK INTERCEPTOR
-
-     Ecwid has its own SPA routing.
-
-     Rewriting href alone is not sufficient because Ecwid
-     may intercept the click first and internally navigate
-     to its own product detail page.
-
-     This handler runs in CAPTURE phase so it gets the click
-     before the normal Ecwid router.
-  ======================================================= */
 
   function installClickInterceptor() {
+
     if (
       clickHandlerInstalled
     ) {
+
       return;
+
     }
 
 
@@ -1696,18 +2084,32 @@
 
     document.addEventListener(
       'click',
+      function (event) {
 
-      function (
-        event
-      ) {
+        var target =
+          event.target;
+
+
+        if (
+          !target ||
+          !target.closest
+        ) {
+
+          return;
+
+        }
+
+
         var link =
-          findMarkedLink(
-            event.target
+          target.closest(
+            'a[data-oyster-cart-product-url]'
           );
 
 
         if (!link) {
+
           return;
+
         }
 
 
@@ -1718,20 +2120,53 @@
 
 
         if (!newUrl) {
+
           return;
+
         }
 
 
+        /*
+         * Only allow the FIRST valid cart-product navigation.
+         * This prevents a second Ecwid/cart click event from
+         * overriding the destination while the browser is
+         * already leaving the cart.
+         */
+        if (navigationStarted) {
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          if (
+            event.stopImmediatePropagation
+          ) {
+
+            event.stopImmediatePropagation();
+
+          }
+
+          return;
+
+        }
+
+
+        navigationStarted =
+          true;
+
+
+        /*
+         * Beat Ecwid's SPA click router before it can convert
+         * this click into Ecwid.openPage(product).
+         */
         event.preventDefault();
-
-
         event.stopPropagation();
-
 
         if (
           event.stopImmediatePropagation
         ) {
+
           event.stopImmediatePropagation();
+
         }
 
 
@@ -1741,74 +2176,66 @@
         );
 
 
-        /*
-         * Navigate the TOP Wix window, not the Ecwid iframe.
-         */
         try {
+
           window.top.location.href =
             newUrl;
 
         } catch (err) {
+
           log(
             'Top navigation fallback:',
             err
           );
 
+
           window.location.href =
             newUrl;
-        }
-      },
 
+        }
+
+      },
       true
     );
 
 
-    /*
-     * Some browsers / touch interactions may reach pointer
-     * handling before click. We still keep click as the
-     * actual navigation trigger so scrolling remains safe.
-     */
-
     log(
       'Capture click interceptor installed'
     );
+
   }
 
 
-  /* =======================================================
-     OBSERVER
-  ======================================================= */
-
   function stopObserver() {
+
     if (
       observer
     ) {
+
       observer.disconnect();
 
       observer =
         null;
+
     }
+
   }
 
 
   function startObserver() {
+
     stopObserver();
 
 
-    /*
-     * Immediate first pass.
-     */
     rewriteCartProductLinks();
 
 
-    /*
-     * Ecwid redraws its cart dynamically.
-     * Watch for newly generated product links.
-     */
     observer =
       new MutationObserver(
         function () {
+
           rewriteCartProductLinks();
+
         }
       );
 
@@ -1816,33 +2243,36 @@
     observer.observe(
       document.body,
       {
+
         childList:
           true,
 
         subtree:
           true
+
       }
     );
+
   }
 
 
-  /* =======================================================
-     START
-  ======================================================= */
-
   function startCartLinkRerouter() {
+
     if (
       typeof Ecwid ===
         'undefined' ||
       !Ecwid.OnAPILoaded ||
       !Ecwid.OnPageLoaded
     ) {
+
       setTimeout(
         startCartLinkRerouter,
         500
       );
 
+
       return;
+
     }
 
 
@@ -1851,9 +2281,11 @@
 
     Ecwid.OnAPILoaded.add(
       function () {
+
         log(
           'Ecwid API loaded'
         );
+
       }
     );
 
@@ -1862,14 +2294,17 @@
       function (
         page
       ) {
+
         if (
           !page ||
           page.type !==
             'CART'
         ) {
+
           stopObserver();
 
           return;
+
         }
 
 
@@ -1879,8 +2314,10 @@
 
 
         startObserver();
+
       }
     );
+
   }
 
 
