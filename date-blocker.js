@@ -1097,7 +1097,7 @@
 
 
   var BLOCKED_DATES =
-    [];
+    ['2026-09-01'];
 
 
   var ALLOWED_DATES =
