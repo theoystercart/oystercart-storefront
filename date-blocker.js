@@ -1084,7 +1084,8 @@
    OYSTER CART — DATE BLOCKER
    Mussel Madness Ticket
 
-   Existing date blocker retained.
+   Updated for Ecwid's current datepicker DOM.
+   This section applies only to product 806985688.
 ========================================================= */
 
 (function () {
@@ -1119,6 +1120,9 @@
   var TARGET_PRODUCT_ID =
     806985688;
 
+
+  var observer =
+    null;
 
 
   function log() {
@@ -1179,29 +1183,16 @@
       nowInSGT();
 
 
-    if (
+    return (
       s.getHours() >
-      CUTOFF_HOUR
-    ) {
-
-      return true;
-
-    }
-
-
-    if (
-      s.getHours() ===
-        CUTOFF_HOUR &&
-      s.getMinutes() >=
-        CUTOFF_MINUTE
-    ) {
-
-      return true;
-
-    }
-
-
-    return false;
+        CUTOFF_HOUR ||
+      (
+        s.getHours() ===
+          CUTOFF_HOUR &&
+        s.getMinutes() >=
+          CUTOFF_MINUTE
+      )
+    );
 
   }
 
@@ -1216,8 +1207,7 @@
       d.getFullYear() +
       '-' +
       pad(
-        d.getMonth() +
-        1
+        d.getMonth() + 1
       ) +
       '-' +
       pad(
@@ -1228,438 +1218,170 @@
   }
 
 
-  function applyBlocks() {
+  function parseDateKey(key) {
 
-    var menus =
-      document.querySelectorAll(
-        '.dp__menu, .dp__instance_calendar'
-      );
+    var parts =
+      String(key).split('-');
 
 
     if (
-      menus.length ===
-      0
+      parts.length !== 3
     ) {
 
-      return;
+      return null;
 
     }
 
 
-    var monthNames = [
+    var year =
+      Number(parts[0]);
 
-      'january',
-      'february',
-      'march',
-      'april',
-      'may',
-      'june',
-      'july',
-      'august',
-      'september',
-      'october',
-      'november',
-      'december'
+    var month =
+      Number(parts[1]);
 
-    ];
+    var day =
+      Number(parts[2]);
 
 
-    menus.forEach(
-      function (menu) {
+    if (
+      !year ||
+      !month ||
+      !day
+    ) {
 
-        var header =
-          menu.querySelector(
-            '.dp__month_year_wrap, .dp__month_year_select'
-          );
+      return null;
 
+    }
 
-        if (!header) {
 
-          return;
+    return new Date(
+      year,
+      month - 1,
+      day
+    );
 
-        }
+  }
 
 
-        var headerText =
-          header.textContent
-            .trim()
-            .toLowerCase();
+  function isBlockedDate(
+    dateString,
+    cellDate,
+    todaySG,
+    todayKey,
+    pastCutoff
+  ) {
 
+    var block =
+      false;
 
-        var month =
-          -1;
 
+    if (
+      cellDate <
+      todaySG
+    ) {
 
-        var year =
-          -1;
+      block =
+        true;
 
+    }
 
-        monthNames.forEach(
-          function (
-            name,
-            index
-          ) {
 
-            if (
-              headerText.indexOf(
-                name
-              ) !==
-              -1
-            ) {
+    if (
+      dateString ===
+        todayKey &&
+      pastCutoff
+    ) {
 
-              month =
-                index;
+      block =
+        true;
 
-            }
+    }
 
-          }
-        );
 
+    if (
+      BLOCKED_WEEKDAYS.indexOf(
+        cellDate.getDay()
+      ) !== -1
+    ) {
 
-        var yearMatch =
-          headerText.match(
-            /\d{4}/
-          );
+      block =
+        true;
 
+    }
 
-        if (
-          yearMatch
-        ) {
 
-          year =
-            parseInt(
-              yearMatch[0],
-              10
-            );
+    if (
+      BLOCKED_DATES.indexOf(
+        dateString
+      ) !== -1
+    ) {
 
-        }
+      block =
+        true;
 
+    }
 
-        if (
-          month ===
-            -1 ||
-          year ===
-            -1
-        ) {
 
-          return;
+    if (
+      ALLOWED_DATES.indexOf(
+        dateString
+      ) !== -1 &&
+      cellDate >=
+        todaySG &&
+      BLOCKED_DATES.indexOf(
+        dateString
+      ) === -1 &&
+      !(
+        dateString ===
+          todayKey &&
+        pastCutoff
+      )
+    ) {
 
-        }
+      block =
+        false;
 
+    }
 
-        var singaporeNow =
-          nowInSGT();
 
+    return block;
 
-        var todaySG =
-          new Date(
-            singaporeNow.getFullYear(),
-            singaporeNow.getMonth(),
-            singaporeNow.getDate()
-          );
+  }
 
 
-        var todayKey =
-          todayKeySGT();
+  function styleCalendarChrome(
+    menu
+  ) {
 
+    var controls =
+      menu.querySelectorAll(
+        'button'
+      );
 
-        var pastCutoff =
-          isPastCutoffSGT();
 
+    Array.prototype.forEach.call(
+      controls,
+      function (control) {
 
-        var cells =
-          menu.querySelectorAll(
-            '.dp__cell_inner'
-          );
+        control.style.color =
+          '#222222';
 
+      }
+    );
 
-        var blockedCount =
-          0;
 
+    var labels =
+      menu.querySelectorAll(
+        '[role="columnheader"]'
+      );
 
-        var cellArray =
-          Array.prototype.slice.call(
-            cells
-          );
 
+    Array.prototype.forEach.call(
+      labels,
+      function (label) {
 
-        cellArray.forEach(
-          function (
-            cell,
-            index
-          ) {
-
-            if (
-              cell.getAttribute(
-                'data-blocked'
-              ) ===
-              'true'
-            ) {
-
-              return;
-
-            }
-
-
-            var day =
-              parseInt(
-                cell.textContent.trim(),
-                10
-              );
-
-
-            if (
-              isNaN(day)
-            ) {
-
-              return;
-
-            }
-
-
-            var cellMonth =
-              month;
-
-
-            var cellYear =
-              year;
-
-
-            var isOffset =
-              cell.classList.contains(
-                'dp__cell_offset'
-              );
-
-
-            if (
-              isOffset
-            ) {
-
-              var rowIndex =
-                Math.floor(
-                  index /
-                  7
-                );
-
-
-              if (
-                rowIndex ===
-                  0 &&
-                day >
-                  20
-              ) {
-
-                cellMonth =
-                  month -
-                  1;
-
-
-                if (
-                  cellMonth <
-                  0
-                ) {
-
-                  cellMonth =
-                    11;
-
-
-                  cellYear =
-                    year -
-                    1;
-
-                }
-
-
-              } else {
-
-                cellMonth =
-                  month +
-                  1;
-
-
-                if (
-                  cellMonth >
-                  11
-                ) {
-
-                  cellMonth =
-                    0;
-
-
-                  cellYear =
-                    year +
-                    1;
-
-                }
-
-              }
-
-            }
-
-
-            var cellDate =
-              new Date(
-                cellYear,
-                cellMonth,
-                day
-              );
-
-
-            var dateString =
-              cellYear +
-              '-' +
-              pad(
-                cellMonth +
-                1
-              ) +
-              '-' +
-              pad(
-                day
-              );
-
-
-            var weekday =
-              cellDate.getDay();
-
-
-            var block =
-              false;
-
-
-            if (
-              cellDate <
-              todaySG
-            ) {
-
-              block =
-                true;
-
-            }
-
-
-            if (
-              dateString ===
-                todayKey &&
-              pastCutoff
-            ) {
-
-              block =
-                true;
-
-            }
-
-
-            if (
-              BLOCKED_WEEKDAYS
-                .indexOf(
-                  weekday
-                ) !==
-              -1
-            ) {
-
-              block =
-                true;
-
-            }
-
-
-            if (
-              BLOCKED_DATES
-                .indexOf(
-                  dateString
-                ) !==
-              -1
-            ) {
-
-              block =
-                true;
-
-            }
-
-
-            if (
-              ALLOWED_DATES
-                .indexOf(
-                  dateString
-                ) !==
-                -1 &&
-
-              cellDate >=
-                todaySG &&
-
-              BLOCKED_DATES
-                .indexOf(
-                  dateString
-                ) ===
-                -1 &&
-
-              !(
-                dateString ===
-                  todayKey &&
-                pastCutoff
-              )
-            ) {
-
-              block =
-                false;
-
-            }
-
-
-            if (
-              block
-            ) {
-
-              cell.classList.add(
-                'dp__cell_disabled'
-              );
-
-
-              cell.style.pointerEvents =
-                'none';
-
-
-              cell.style.opacity =
-                '0.3';
-
-
-              cell.style.textDecoration =
-                'line-through';
-
-
-              cell.setAttribute(
-                'data-blocked',
-                'true'
-              );
-
-
-              cell.setAttribute(
-                'title',
-                'Not available'
-              );
-
-
-              blockedCount++;
-
-            }
-
-          }
-        );
-
-
-        if (
-          blockedCount >
-          0
-        ) {
-
-          log(
-            'Blocked',
-            blockedCount,
-            'dates in',
-            headerText
-          );
-
-        }
+        label.style.color =
+          '#555555';
 
       }
     );
@@ -1667,14 +1389,326 @@
   }
 
 
-  var observer =
-    new MutationObserver(
-      function () {
+  function applyBlocks() {
 
-        applyBlocks();
+    var menus =
+      document.querySelectorAll(
+        '.dp--menu, [role="dialog"][aria-label="Datepicker menu"]'
+      );
+
+
+    if (
+      menus.length === 0
+    ) {
+
+      return;
+
+    }
+
+
+    var singaporeNow =
+      nowInSGT();
+
+
+    var todaySG =
+      new Date(
+        singaporeNow.getFullYear(),
+        singaporeNow.getMonth(),
+        singaporeNow.getDate()
+      );
+
+
+    var todayKey =
+      todayKeySGT();
+
+
+    var pastCutoff =
+      isPastCutoffSGT();
+
+
+    Array.prototype.forEach.call(
+      menus,
+      function (menu) {
+
+        styleCalendarChrome(
+          menu
+        );
+
+
+        var cells =
+          menu.querySelectorAll(
+            '[role="gridcell"][id^="dp-"]'
+          );
+
+
+        var blockedCount =
+          0;
+
+
+        Array.prototype.forEach.call(
+          cells,
+          function (gridCell) {
+
+            var dateString =
+              String(
+                gridCell.id || ''
+              ).replace(
+                /^dp-/,
+                ''
+              );
+
+
+            var cellDate =
+              parseDateKey(
+                dateString
+              );
+
+
+            if (!cellDate) {
+
+              return;
+
+            }
+
+
+            var inner =
+              gridCell.querySelector(
+                '.dp--cell-inner'
+              ) ||
+              gridCell;
+
+
+            var block =
+              isBlockedDate(
+                dateString,
+                cellDate,
+                todaySG,
+                todayKey,
+                pastCutoff
+              );
+
+
+            if (
+              block
+            ) {
+
+              gridCell.setAttribute(
+                'data-oyster-mm-blocked',
+                'true'
+              );
+
+              gridCell.setAttribute(
+                'aria-disabled',
+                'true'
+              );
+
+              gridCell.setAttribute(
+                'tabindex',
+                '-1'
+              );
+
+              gridCell.setAttribute(
+                'title',
+                'Not available'
+              );
+
+              gridCell.style.pointerEvents =
+                'none';
+
+              gridCell.style.cursor =
+                'not-allowed';
+
+              inner.style.color =
+                '#8a8a8a';
+
+              inner.style.opacity =
+                '0.38';
+
+              inner.style.textDecoration =
+                'line-through';
+
+              inner.style.background =
+                'transparent';
+
+              inner.style.borderColor =
+                'transparent';
+
+              blockedCount++;
+
+            } else {
+
+              gridCell.removeAttribute(
+                'data-oyster-mm-blocked'
+              );
+
+              gridCell.removeAttribute(
+                'aria-disabled'
+              );
+
+              gridCell.setAttribute(
+                'tabindex',
+                '0'
+              );
+
+              gridCell.removeAttribute(
+                'title'
+              );
+
+              gridCell.style.pointerEvents =
+                'auto';
+
+              gridCell.style.cursor =
+                'pointer';
+
+              inner.style.color =
+                '#1f1f1f';
+
+              inner.style.opacity =
+                '1';
+
+              inner.style.textDecoration =
+                'none';
+
+            }
+
+          }
+        );
+
+
+        log(
+          'Applied current rules:',
+          blockedCount,
+          'blocked of',
+          cells.length
+        );
 
       }
     );
+
+  }
+
+
+  function stopObserver() {
+
+    if (
+      observer
+    ) {
+
+      observer.disconnect();
+
+      observer =
+        null;
+
+    }
+
+  }
+
+
+  function startObserver() {
+
+    stopObserver();
+
+
+    observer =
+      new MutationObserver(
+        function () {
+
+          applyBlocks();
+
+        }
+      );
+
+
+    observer.observe(
+      document.body,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+
+
+    applyBlocks();
+
+  }
+
+
+  function blockKeyboardActivation(
+    event
+  ) {
+
+    var target =
+      event.target;
+
+
+    if (
+      !target ||
+      !target.closest
+    ) {
+
+      return;
+
+    }
+
+
+    var blockedCell =
+      target.closest(
+        '[data-oyster-mm-blocked="true"]'
+      );
+
+
+    if (!blockedCell) {
+
+      return;
+
+    }
+
+
+    event.preventDefault();
+    event.stopPropagation();
+
+
+    if (
+      event.stopImmediatePropagation
+    ) {
+
+      event.stopImmediatePropagation();
+
+    }
+
+  }
+
+
+  document.addEventListener(
+    'click',
+    blockKeyboardActivation,
+    true
+  );
+
+
+  document.addEventListener(
+    'keydown',
+    function (event) {
+
+      if (
+        event.key ===
+          'Enter' ||
+        event.key ===
+          ' '
+      ) {
+
+        blockKeyboardActivation(
+          event
+        );
+
+      }
+
+    },
+    true
+  );
 
 
   function startDateBlocker() {
@@ -1682,7 +1716,8 @@
     if (
       typeof Ecwid ===
         'undefined' ||
-      !Ecwid.OnAPILoaded
+      !Ecwid.OnAPILoaded ||
+      !Ecwid.OnPageLoaded
     ) {
 
       setTimeout(
@@ -1696,38 +1731,21 @@
     }
 
 
-    Ecwid.OnAPILoaded.add(
-      function () {
-
-        log(
-          'Ecwid API loaded'
-        );
-
-      }
-    );
-
-
     Ecwid.OnPageLoaded.add(
-      function (
-        page
-      ) {
+      function (page) {
 
         if (
+          !page ||
           page.type !==
-          'PRODUCT'
-        ) {
-
-          return;
-
-        }
-
-
-        if (
-          TARGET_PRODUCT_ID !==
-            null &&
-          page.productId !==
+            'PRODUCT' ||
+          Number(
+            page.productId
+          ) !==
             TARGET_PRODUCT_ID
         ) {
+
+          stopObserver();
+
 
           return;
 
@@ -1739,21 +1757,7 @@
         );
 
 
-        observer.disconnect();
-
-
-        observer.observe(
-          document.body,
-          {
-
-            childList:
-              true,
-
-            subtree:
-              true
-
-          }
-        );
+        startObserver();
 
       }
     );
