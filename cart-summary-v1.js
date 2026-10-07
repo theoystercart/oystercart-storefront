@@ -7,7 +7,7 @@
   var test = location.hostname === 'localhost';
   if (test) { SITE = location.origin; STORE = location.origin; }
   function text(el) { return el ? el.textContent.trim().replace(/\s+/g, ' ').slice(0,500) : ''; }
-  function money(el) { var t = text(el); var m = t.match(/(?:S\$|\$)[\d,]+(?:\.\d{2})?/); return m ? m[0] : ''; }
+  function money(el) { var t = text(el); var m = t.match(/(?:[-−]\s*)?(?:S\$|\$)\s*[-−]?[\d,]+(?:\.\d{2})?/); return m ? m[0] : ''; }
   // The existing Ecwid bridge loads this side inside the store frame.
   if (window.parent !== window && (location.origin === STORE)) {
     if (window.__oysterSummarySender) return;
