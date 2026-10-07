@@ -2335,4 +2335,4 @@
 })();
 
 /* Mobile cart summary: independent display-only module. */
-(function(){if(document.getElementById('oyster-summary-module'))return;var s=document.createElement('script');s.id='oyster-summary-module';s.src='https://theoystercart.github.io/oystercart-storefront/cart-summary-v1.js';s.async=true;document.head.appendChild(s);})();
+(function(){if(document.getElementById('oyster-summary-module'))return;var s=document.createElement('script');s.id='oyster-summary-module';s.src='https://theoystercart.github.io/oystercart-storefront/cart-summary-v2.js';s.async=true;document.head.appendChild(s);})();
