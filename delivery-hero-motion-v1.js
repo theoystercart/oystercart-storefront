@@ -3,7 +3,7 @@
  const media=matchMedia('(prefers-reduced-motion: reduce)');let mounted=null,timer=0,attempts=0,prepared=null;
  const home=()=>location.pathname.replace(/\/$/,'')==='/delivery';
  const mobile=()=>Math.min(innerWidth,screen.width)<=680;
- function prepare(){if(!prepared){prepared=document.createElement('video');prepared.muted=true;prepared.playsInline=true;prepared.preload='auto';prepared.src='https://theoystercart.github.io/oystercart-storefront/delivery-hero-mobile-v1.mp4';prepared.load();}return prepared;}
+ function prepare(){if(!prepared){prepared=document.createElement('video');prepared.muted=true;prepared.playsInline=true;prepared.preload='auto';prepared.src='https://theoystercart.github.io/oystercart-storefront/delivery-hero-mobile-v2.mp4';prepared.load();}return prepared;}
  function clear(){if(!mounted)return;mounted.abort.abort();clearTimeout(mounted.delay);mounted.io.disconnect();mounted.video.pause();mounted.video.removeAttribute('src');mounted.video.load();mounted.video.remove();mounted.style.remove();mounted=null;}
  function mount(){clearTimeout(timer);if(!home()||!mobile()||media.matches||navigator.connection?.saveData){clear();if(prepared){prepared.removeAttribute('src');prepared.load();prepared=null;}return;}
  const root=document.querySelector('oyster-delivery-catalogue'),shadow=root?.shadowRoot,hero=shadow?.querySelector('.hero'),photo=hero?.querySelector('.hero-photo');
