@@ -12,7 +12,7 @@
   if (window.parent !== window && (location.origin === STORE)) {
     if (window.__oysterSummarySender) return;
     window.__oysterSummarySender = true;
-    var enabled = false, pending = 0, observer;
+    var enabled = false, pending = 0, observer, expiry;
     function send(focus) {
       if (!enabled) return;
       var cart = document.querySelector('.ec-store__cart-page .ec-cart');
@@ -40,6 +40,7 @@
     function schedule() { clearTimeout(pending); pending=setTimeout(function(){send(false);},100); }
     window.addEventListener('message',function(e){
       if(e.origin!==SITE || e.source!==window.parent || !e.data || e.data.channel!==CHANNEL || e.data.command!=='read')return;
+      clearTimeout(expiry);expiry=setTimeout(function(){enabled=false;if(observer)observer.disconnect();clearTimeout(pending);},5000);
       if(!enabled){enabled=true;observer=new MutationObserver(schedule);observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class']});}
       send(false);
     });
@@ -51,7 +52,8 @@
   var host,root,button,panel,label,amount,hint,toggle,frame,lastData,lastJSON='',lastAt=0;
   var mobile=matchMedia('(max-width:680px)'), expanded=false;
   function route(){return /^\/online-store(?:\/|$)/.test(location.pathname) || test;}
-  function close(){expanded=false;if(panel){panel.hidden=true;button.setAttribute('aria-expanded','false');toggle.textContent='View items \u25be';}}
+  function toggleText(){return (lastData?lastData.items.length+' '+(lastData.items.length===1?'item':'items')+' \u00b7 ':'')+(expanded?'Hide items \u25b4':'View items \u25be');}
+  function close(){expanded=false;if(panel){panel.hidden=true;button.setAttribute('aria-expanded','false');toggle.textContent=toggleText();}}
   function remove(){if(host)host.remove();host=null;root=null;lastData=null;lastJSON='';expanded=false;}
   function node(tag,cls,value){var e=document.createElement(tag);if(cls)e.className=cls;if(value)e.textContent=value;return e;}
   function mount(){
@@ -62,13 +64,13 @@
     label=node('span','label');amount=node('span','amount');toggle=node('span','toggle','View items \u25be');hint=node('span','hint');
     button.append(label,amount,toggle,hint);root.appendChild(button);
     panel=node('section','panel');panel.id='items';panel.setAttribute('aria-label','Cart items and charges');panel.hidden=true;root.appendChild(panel);
-    button.addEventListener('click',function(){expanded=!expanded;panel.hidden=!expanded;button.setAttribute('aria-expanded',String(expanded));toggle.textContent=expanded?'Hide items \u25b4':'View items \u25be';});
+    button.addEventListener('click',function(){expanded=!expanded;panel.hidden=!expanded;button.setAttribute('aria-expanded',String(expanded));toggle.textContent=toggleText();});
     root.addEventListener('keydown',function(e){if(e.key==='Escape'){close();button.focus();}});
     document.body.appendChild(host);
   }
   function render(data){
     if(!host)mount();
-    label.textContent=data.label;amount.textContent=data.amount;hint.textContent=data.note;
+    toggle.textContent=toggleText();label.textContent=data.label;amount.textContent=data.amount;hint.textContent=data.note;
     panel.replaceChildren();
     data.items.forEach(function(item){
       var row=node('div','item'),image=node('img');image.alt='';
