@@ -20,7 +20,7 @@
  video.addEventListener('error',()=>{video.classList.remove('is-ready');},opts);
  document.addEventListener('visibilitychange',()=>{if(document.hidden){video.pause();}else start()},opts);
  state.io=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;if(visible)start();else if(!video.paused){video.pause();}},{threshold:.15});state.io.observe(hero);
- function schedule(){state.delay=setTimeout(()=>{ready=true;start()},1800)}
+ function schedule(){state.delay=setTimeout(()=>{ready=true;start()},150)}
  if(photo.complete&&photo.naturalWidth)schedule();else photo.addEventListener('load',schedule,{once:true,signal:abort.signal});
  }
  const observer=new MutationObserver(()=>{if(mounted&&(!home()||!mounted.root.isConnected))clear();if(!mounted&&home()){attempts=0;clearTimeout(timer);timer=setTimeout(mount,100)}});
