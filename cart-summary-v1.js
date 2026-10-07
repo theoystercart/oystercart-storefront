@@ -69,7 +69,7 @@
     document.body.appendChild(host);
   }
   function render(data){
-    if(!host)mount();
+    if(!host || !host.isConnected)mount();
     toggle.textContent=toggleText();label.textContent=data.label;amount.textContent=data.amount;hint.textContent=data.note;
     panel.replaceChildren();
     data.items.forEach(function(item){
@@ -101,7 +101,7 @@
     if(!Array.isArray(d.items)||!Array.isArray(d.rows)||d.items.length>60||typeof d.amount!=='string'||typeof d.label!=='string')return;
     lastAt=Date.now();lastData=d;
     var json=JSON.stringify({items:d.items,rows:d.rows,label:d.label,amount:d.amount,note:d.note});
-    if(json!==lastJSON){render(d);lastJSON=json;}
+    if(json!==lastJSON || !host || !host.isConnected){render(d);lastJSON=json;}
     if(d.focus)close();position();
   });
   function tick(){
