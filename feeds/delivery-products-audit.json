@@ -1,0 +1,246 @@
+[
+  {
+    "id": "531010906",
+    "name": "Fine De Claire",
+    "link": "https://www.theoystercart.com/products/fine-de-claire",
+    "price": "73.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "12 pieces - SHUCKED (Opened)",
+      "Size": "Average size (3.0\" to 3.5\")",
+      "Special Sauce Bundle (Optional)": "Mignonette, Ponzu and Lumpfish Caviar"
+    }
+  },
+  {
+    "id": "522362757",
+    "name": "Deluxe",
+    "link": "https://www.theoystercart.com/products/deluxe",
+    "price": "73.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "12 pieces",
+      "Shuck Or Unshuck, Select Preparation Method": "Shuck (Open)",
+      "Size": "Average size (3.0\" to 3.5\")",
+      "Special Sauce Bundle (Optional)": "Mignonette, Ponzu and Lumpfish Caviar"
+    }
+  },
+  {
+    "id": "522415252",
+    "name": "PREMIUM",
+    "link": "https://www.theoystercart.com/products/premium",
+    "price": "93.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "12 pieces",
+      "Size": "Average size (2.6\" to 3.2\")",
+      "Shuck Or Unshuck, Select Preparation Method": "Shuck (Open)",
+      "Special Sauce Bundle (Optional)": "Mignonette, Ponzu and Lumpfish Caviar"
+    }
+  },
+  {
+    "id": "530329925",
+    "name": "Mix",
+    "link": "https://www.theoystercart.com/products/mix",
+    "price": "83.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "12 pieces or 18 pieces (Self-Collection)",
+      "Shuck Or Unshuck, Select Preparation Method": "Shuck (Open)",
+      "Special Sauce Bundle (Optional)": "Mignonette, Ponzu and Lumpfish Caviar"
+    }
+  },
+  {
+    "id": "185491924",
+    "name": "Oyster Soiree",
+    "link": "https://www.theoystercart.com/products/oyster-soiree",
+    "price": "395.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Choose set-up": "Oyster Tray (Size 80cm x 60cm)",
+      "Quantity": "60 pieces (Seasonal Best Oysters)",
+      "Caviar/Roes add-on": "Lumpfish Caviar"
+    }
+  },
+  {
+    "id": "207786863",
+    "name": "Cold Littleneck Clams",
+    "link": "https://www.theoystercart.com/products/cold-littleneck-clams",
+    "price": "30.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "12 Half Shell Clams"
+    }
+  },
+  {
+    "id": "217152382",
+    "name": "Clams Pot",
+    "link": "https://www.theoystercart.com/products/clams-pot",
+    "price": "34.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "1 kg"
+    }
+  },
+  {
+    "id": "704106068",
+    "name": "Dashi Clams",
+    "link": "https://www.theoystercart.com/products/dashi-clams",
+    "price": "35.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "1 kg"
+    }
+  },
+  {
+    "id": "488853391",
+    "name": "Classic Wine Broth Mussel Pot",
+    "link": "https://www.theoystercart.com/products/classic-wine-broth-mussel-pot",
+    "price": "32.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "1 kg"
+    }
+  },
+  {
+    "id": "703979636",
+    "name": "Chilli Tomato Mussels",
+    "link": "https://www.theoystercart.com/products/chilli-tomato-mussels",
+    "price": "30.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "1 kg"
+    }
+  },
+  {
+    "id": "824351028",
+    "name": "Green Lipped Mussels In Wine Broth",
+    "link": "https://www.theoystercart.com/products/green-lipped-mussels-in-wine-broth",
+    "price": "36.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "1 kg"
+    }
+  },
+  {
+    "id": "438103589",
+    "name": "Caviar Tart",
+    "link": "https://www.theoystercart.com/products/caviar-tart",
+    "price": "28.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "1 x Caviar Tart (3 inches)"
+    }
+  },
+  {
+    "id": "393943369",
+    "name": "Kaviari Caviar",
+    "link": "https://www.theoystercart.com/products/kaviari-caviar",
+    "price": "98.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "30 grams Kaviari Oscietra",
+      "Minimum 1 working day in advance": "Okay, I understand!"
+    }
+  },
+  {
+    "id": "445743026",
+    "name": "Arctic Cold Shrimps",
+    "link": "https://www.theoystercart.com/products/arctic-cold-shrimps",
+    "price": "28.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "35-40 pieces (approximately 500 grams)"
+    }
+  },
+  {
+    "id": "260170144",
+    "name": "Cocktail Shrimps",
+    "link": "https://www.theoystercart.com/products/cocktail-shrimps",
+    "price": "58.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "30-35 pieces"
+    }
+  },
+  {
+    "id": "374456001",
+    "name": "Mexican Seafood Ceviche",
+    "link": "https://www.theoystercart.com/products/mexican-seafood-ceviche",
+    "price": "28.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity:": "500 ML"
+    }
+  },
+  {
+    "id": "445455381",
+    "name": "Seafood Stew",
+    "link": "https://www.theoystercart.com/products/seafood-stew",
+    "price": "28.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity:": "2-3 pax portion Fish Stew"
+    }
+  },
+  {
+    "id": "199205320",
+    "name": "Shrimp/Lobster rolls",
+    "link": "https://www.theoystercart.com/products/shrimp-lobster-rolls",
+    "price": "32.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "1 set - 2 x Shrimp Rolls at $16 per roll",
+      "Packing style": "Pack fillings separately"
+    }
+  },
+  {
+    "id": "807467598",
+    "name": "Smoked Cream Cheese Platter",
+    "link": "https://www.theoystercart.com/products/smoked-cream-cheese-platter",
+    "price": "38.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity:": "200 Grams Smoked Cream cheese, seasonal fruits and crisp"
+    }
+  },
+  {
+    "id": "810652253",
+    "name": "Handsmoked Cold Salmon",
+    "link": "https://www.theoystercart.com/products/handsmoked-cold-salmon",
+    "price": "108.00 SGD",
+    "availability": "in_stock",
+    "selection": {}
+  },
+  {
+    "id": "805505400",
+    "name": "AUS Striploin",
+    "link": "https://www.theoystercart.com/products/aus-striploin",
+    "price": "35.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "250 grams (1-2 pax)",
+      "Homemade Sauce": "Peppercorn Sauce",
+      "Doneness": "Medium Rare"
+    }
+  },
+  {
+    "id": "805523047",
+    "name": "NZ Grain Fed Tomahawk",
+    "link": "https://www.theoystercart.com/products/nz-grain-fed-tomahawk",
+    "price": "138.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Selection": "1-1.2 kg (2-4 pax)",
+      "Homemade Sauce": "Peppercorn Sauce",
+      "Doneness": "Medium Rare"
+    }
+  },
+  {
+    "id": "528371264",
+    "name": "Beef Tartare",
+    "link": "https://www.theoystercart.com/products/beef-tartare",
+    "price": "28.00 SGD",
+    "availability": "in_stock",
+    "selection": {}
+  }
+]
