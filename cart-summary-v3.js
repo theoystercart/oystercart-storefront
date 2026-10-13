@@ -35,7 +35,14 @@
           data={items:items,rows:rows,label:initial?'Item subtotal':total.label,amount:total.value,note:initial?'Delivery calculated after selection':'See the breakdown below',focus:!!focus};
         }
       }
-      window.parent.postMessage({channel:CHANNEL,data:data},SITE);
+      // Confirm rendered cart content, including an empty cart; never infer from frame size.
+      var visible = !!cart && cart.getBoundingClientRect().height > 0;
+      for (var el = cart; visible && el; el = el.parentElement) {
+        var style = getComputedStyle(el);
+        if (style.display === 'none' || style.visibility !== 'visible' || Number(style.opacity) === 0) visible = false;
+      }
+      var ready = visible && (!!data || cart.classList.contains('ec-cart--empty'));
+      window.parent.postMessage({channel:CHANNEL,data:data,ready:ready},SITE);
     }
     function schedule() { clearTimeout(pending); pending=setTimeout(function(){send(false);},100); }
     window.addEventListener('message',function(e){
