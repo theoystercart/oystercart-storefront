@@ -48,7 +48,7 @@
     window.addEventListener('message',function(e){
       if(e.origin!==SITE || e.source!==window.parent || !e.data || e.data.channel!==CHANNEL || e.data.command!=='read')return;
       clearTimeout(expiry);expiry=setTimeout(function(){enabled=false;if(observer)observer.disconnect();clearTimeout(pending);},5000);
-      if(!enabled){enabled=true;observer=new MutationObserver(schedule);observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class']});}
+      if(!enabled){enabled=true;observer=new MutationObserver(schedule);observer.observe(document.body||document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class']});}
       send(false);
     });
     document.addEventListener('focusin',function(e){if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))send(true);});
