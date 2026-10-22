@@ -38,6 +38,19 @@
     }
   },
   {
+    "id": "872989832",
+    "name": "GRAND CRU",
+    "link": "https://www.theoystercart.com/products/grand-cru",
+    "price": "103.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "12 pieces",
+      "Size": "Average size (2.6\" to 3.2\")",
+      "Shuck Or Unshuck, Select Preparation Method": "Shuck (Open)",
+      "Special Sauce Bundle (Optional)": "Mignonette, Ponzu and Lumpfish Caviar"
+    }
+  },
+  {
     "id": "530329925",
     "name": "Mix",
     "link": "https://www.theoystercart.com/products/mix",
