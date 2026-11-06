@@ -44,6 +44,19 @@
       <g:product_type>Delivery &gt; oysters</g:product_type>
     </item>
     <item>
+      <g:id>2026110601</g:id>
+      <g:title>Emerald</g:title>
+      <g:description>Distinctive green-gilled oysters with a delicate briny opening that gives way to gentle sweetness. Tender flesh and a balanced finish make them easy to savour. Selection at this price: Quantity: 12 oysters; Size: Average size; Shuck Or Unshuck, Select Preparation Method: Shuck (Open); Special Sauce Bundle (Optional): None.</g:description>
+      <g:link>https://www.theoystercart.com/products/emerald-series-verte-de-claire</g:link>
+      <g:image_link>https://static.wixstatic.com/media/e73570_7691ef1eef97440f97b848fcbc20d588~mv2.png/v1/fit/w_1536,h_1024,q_90/file.png</g:image_link>
+      <g:price>72.00 SGD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:identifier_exists>false</g:identifier_exists>
+      <g:google_product_category>Food, Beverages &amp; Tobacco &gt; Food Items</g:google_product_category>
+      <g:product_type>Delivery &gt; oysters</g:product_type>
+    </item>
+    <item>
       <g:id>872989832</g:id>
       <g:title>GRAND CRU</g:title>
       <g:description>An oyster for grand occasions. Among France’s finest oysters, prized for their rich sweetness, generous flesh and exceptionally long finish. Selection at this price: Quantity: 12 pieces; Size: Cocktail size (2.2" to 2.5"); Shuck Or Unshuck, Select Preparation Method: Shuck (Open); Special Sauce Bundle (Optional): None.</g:description>
@@ -59,7 +72,7 @@
     <item>
       <g:id>530329925</g:id>
       <g:title>Mix</g:title>
-      <g:description>Can’t decide? Enjoy Deluxe and Premium together in one thoughtfully selected dozen. Selection at this price: Quantity: 12 pieces or 18 pieces (Self-Collection); Shuck Or Unshuck, Select Preparation Method: Shuck (Open); Special Sauce Bundle (Optional): None.</g:description>
+      <g:description>A pairing of Deluxe and Premium oysters, bringing two distinct flavours to your table. Enjoy 50% More Oysters with every dozen. Exclusively for self-collection. Selection at this price: Quantity: 12 pieces or 18 pieces (Self-Collection); Shuck Or Unshuck, Select Preparation Method: Shuck (Open); Special Sauce Bundle (Optional): None.</g:description>
       <g:link>https://shop.theoystercart.com/products/mix/</g:link>
       <g:image_link>https://static.wixstatic.com/media/e73570_d28aa99b15bd4f2fad26d1b11e14bc05~mv2.jpg/v1/fit/w_1000,h_1000,q_80,enc_webp/file.webp</g:image_link>
       <g:price>72.00 SGD</g:price>
@@ -67,7 +80,20 @@
       <g:condition>new</g:condition>
       <g:identifier_exists>false</g:identifier_exists>
       <g:google_product_category>Food, Beverages &amp; Tobacco &gt; Food Items</g:google_product_category>
-      <g:product_type>Delivery &gt; mix</g:product_type>
+      <g:product_type>Delivery &gt; oysters</g:product_type>
+    </item>
+    <item>
+      <g:id>2026110602</g:id>
+      <g:title>Explorer</g:title>
+      <g:description>Five oyster varieties. One tasting journey. Discover Fine de Claire, Deluxe, Premium, Emerald and Grand Cru in equal portions. Selection at this price: Quantity: 30 oysters — 6 of each type; Shuck Or Unshuck, Select Preparation Method: Shuck (Open); Special Sauce Bundle (Optional): None.</g:description>
+      <g:link>https://shop.theoystercart.com/products/explorer/</g:link>
+      <g:image_link>https://static.wixstatic.com/media/e73570_e459339f166d49a6becb1e48907d5a19~mv2.png/v1/fit/w_1536,h_1024,q_90/file.png</g:image_link>
+      <g:price>187.50 SGD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:identifier_exists>false</g:identifier_exists>
+      <g:google_product_category>Food, Beverages &amp; Tobacco &gt; Food Items</g:google_product_category>
+      <g:product_type>Delivery &gt; explorer</g:product_type>
     </item>
     <item>
       <g:id>185491924</g:id>

@@ -41,6 +41,20 @@
     "source": "WIX"
   },
   {
+    "id": "2026110601",
+    "name": "Emerald",
+    "link": "https://www.theoystercart.com/products/emerald-series-verte-de-claire",
+    "price": "72.00 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "12 oysters",
+      "Size": "Average size",
+      "Shuck Or Unshuck, Select Preparation Method": "Shuck (Open)",
+      "Special Sauce Bundle (Optional)": "None"
+    },
+    "source": "WIX"
+  },
+  {
     "id": "872989832",
     "name": "GRAND CRU",
     "link": "https://shop.theoystercart.com/products/grand-cru/",
@@ -62,6 +76,19 @@
     "availability": "in_stock",
     "selection": {
       "Quantity": "12 pieces or 18 pieces (Self-Collection)",
+      "Shuck Or Unshuck, Select Preparation Method": "Shuck (Open)",
+      "Special Sauce Bundle (Optional)": "None"
+    },
+    "source": "WIX"
+  },
+  {
+    "id": "2026110602",
+    "name": "Explorer",
+    "link": "https://shop.theoystercart.com/products/explorer/",
+    "price": "187.50 SGD",
+    "availability": "in_stock",
+    "selection": {
+      "Quantity": "30 oysters \u2014 6 of each type",
       "Shuck Or Unshuck, Select Preparation Method": "Shuck (Open)",
       "Special Sauce Bundle (Optional)": "None"
     },
